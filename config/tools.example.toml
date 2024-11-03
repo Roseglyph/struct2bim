@@ -1,0 +1,7 @@
+[blender]
+executable = ".tools/blender-4.2.0-windows-x64/blender.exe"
+factory_startup = true
+
+[artifacts]
+root = "outputs"
+
