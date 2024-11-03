@@ -1,0 +1,65 @@
+# Project-local tools and runtimes
+.tools/
+.venv/
+.venv-*/
+.python-version
+
+# Package and tool caches
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+
+# Generated datasets and model artifacts
+datasets/
+outputs/
+runs/
+weights/
+checkpoints/
+*.pt
+*.pth
+*.onnx
+*.engine
+*.tflite
+
+# Blender-generated and temporary artifacts
+*.blend1
+*.blend2
+*.blend@
+blender_cache/
+render_cache/
+
+# Local CAD/BIM conversion work
+converted_dwg/
+generated_dxf/
+generated_ifc/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.local.yaml
+*.local.yml
+*.local.toml
+
+# Build and coverage output
+build/
+dist/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Scratch files
+tmp/
+temp/
+*.log
+

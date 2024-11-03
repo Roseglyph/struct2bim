@@ -1,0 +1,8 @@
+* text=auto
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.blend binary
+*.ifc text eol=lf
+*.dxf text eol=lf
+
