@@ -56,12 +56,15 @@ def _perspective_variant(
 ) -> tuple[UInt8Image, FloatArray]:
     height, width = image.shape[:2]
     maximum = min(width, height) * 0.035
-    offsets = rng.uniform(-maximum, maximum, size=(4, 2)).astype(np.float32)
+    inset = rng.uniform(0.0, maximum, size=(4, 2)).astype(np.float32)
     source = np.array(
         [[0, 0], [width - 1, 0], [width - 1, height - 1], [0, height - 1]],
         dtype=np.float32,
     )
-    destination = source + offsets
+    destination = source + np.array(
+        [inset[0], [-inset[1, 0], inset[1, 1]], -inset[2], [inset[3, 0], -inset[3, 1]]],
+        dtype=np.float32,
+    )
     homography = cv2.getPerspectiveTransform(source, destination)
     warped = cv2.warpPerspective(
         image,

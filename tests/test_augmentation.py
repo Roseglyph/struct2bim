@@ -6,7 +6,10 @@ from struct2bim.augmentation import (
     AugmentationProfile,
     augment_document,
     transform_points,
+    transform_annotation_set,
 )
+from struct2bim.annotations import annotations_from_scene
+from struct2bim.curriculum import generate_reference_scene
 
 
 @pytest.fixture
@@ -41,3 +44,14 @@ def test_invalid_image_is_rejected() -> None:
     with pytest.raises(ValueError, match="too small"):
         augment_document(np.zeros((8, 8), dtype=np.uint8), AugmentationProfile.SCAN, seed=1)
 
+
+def test_perspective_transform_keeps_annotations_valid(drawing: np.ndarray) -> None:
+    scene = generate_reference_scene(42)
+    annotations = annotations_from_scene(scene)
+    large_drawing = np.full(
+        (scene.source.height_px, scene.source.width_px, 3), 255, dtype=np.uint8
+    )
+    result = augment_document(large_drawing, AugmentationProfile.PERSPECTIVE_PHOTO, seed=4)
+    transformed = transform_annotation_set(annotations, result.homography)
+    assert len(transformed.records) == len(scene.entities)
+    assert transformed.records[0].polygon_px != annotations.records[0].polygon_px
