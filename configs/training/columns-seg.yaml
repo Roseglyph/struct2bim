@@ -1,0 +1,14 @@
+task: segment
+model: yolo11n-seg.pt
+dataset: outputs/dataset/dataset.yaml
+project: runs/segment
+name: columns-seg
+epochs: 100
+image_size: 1024
+batch_size: 4
+workers: 2
+device: auto
+seed: 42
+save_period: 5
+resume_checkpoint: null
+
