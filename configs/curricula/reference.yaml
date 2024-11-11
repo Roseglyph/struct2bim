@@ -1,0 +1,18 @@
+project_seed: 24017
+scene_seed_start: 1000
+scene_count: 12
+variants:
+  - clean
+  - scan
+  - perspective_photo
+scene:
+  canvas_width_px: 1600
+  canvas_height_px: 1200
+  pixels_per_mm: 0.08
+  columns_x: 4
+  columns_y: 3
+  spacing_x_mm: 4000
+  spacing_y_mm: 4500
+  storey_height_mm: 3200
+  margin_mm: 900
+
