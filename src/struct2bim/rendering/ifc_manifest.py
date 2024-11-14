@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 def build_ifc_render_manifest(ifc_path: Path, output: Path) -> Path:
@@ -15,9 +15,9 @@ def build_ifc_render_manifest(ifc_path: Path, output: Path) -> Path:
     except ImportError as error:  # pragma: no cover - installation failure path
         raise RuntimeError("IfcOpenShell is required to prepare an IFC render") from error
 
-    model = ifcopenshell.open(str(ifc_path))
-    settings = ifcopenshell.geom.settings()
-    settings.set(settings.USE_WORLD_COORDS, True)
+    model: Any = ifcopenshell.open(str(ifc_path))
+    settings: Any = ifcopenshell.geom.settings()  # type: ignore[no-untyped-call]
+    settings.set("use-world-coords", True)
     meshes: list[dict[str, Any]] = []
     for product in model.by_type("IfcProduct"):
         if product.is_a() in {"IfcSite", "IfcBuilding", "IfcBuildingStorey", "IfcGrid"}:
@@ -28,8 +28,9 @@ def build_ifc_render_manifest(ifc_path: Path, output: Path) -> Path:
             shape = ifcopenshell.geom.create_shape(settings, product)
         except RuntimeError:
             continue
-        vertices = list(shape.geometry.verts)
-        faces = list(shape.geometry.faces)
+        geometry = cast(Any, shape).geometry
+        vertices = list(geometry.verts)
+        faces = list(geometry.faces)
         meshes.append(
             {
                 "id": product.GlobalId,

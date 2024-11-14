@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Any, Iterable
+from collections.abc import Callable, Iterable
+from typing import Any, cast
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -15,7 +16,7 @@ _AMBER = "#D97706"
 _CHARCOAL = "#19232D"
 
 
-def _font(size: int, bold: bool = False) -> ImageFont.ImageFont:
+def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     names = ["DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf", "arialbd.ttf" if bold else "arial.ttf"]
     for name in names:
         try:
@@ -27,14 +28,14 @@ def _font(size: int, bold: bool = False) -> ImageFont.ImageFont:
 
 def _load_scene(scene: Path | dict[str, Any] | Any) -> dict[str, Any]:
     if isinstance(scene, Path):
-        return json.loads(scene.read_text(encoding="utf-8"))
+        return cast(dict[str, Any], json.loads(scene.read_text(encoding="utf-8")))
     if hasattr(scene, "canonical_json"):
-        return json.loads(scene.canonical_json())
-    return scene
+        return cast(dict[str, Any], json.loads(scene.canonical_json()))
+    return cast(dict[str, Any], scene)
 
 
 def _entities(scene: dict[str, Any]) -> Iterable[dict[str, Any]]:
-    return scene.get("entities", scene.get("structural_entities", []))
+    return cast(Iterable[dict[str, Any]], scene.get("entities", scene.get("structural_entities", [])))
 
 
 def _column_polygon(entity: dict[str, Any]) -> list[tuple[float, float]]:
@@ -75,7 +76,9 @@ def _bounds(polygons: list[list[tuple[float, float]]]) -> tuple[float, float, fl
     return min(xs) - pad, min(ys) - pad, max(xs) + pad, max(ys) + pad
 
 
-def _projector(bounds: tuple[float, float, float, float], size: tuple[int, int]):
+def _projector(
+    bounds: tuple[float, float, float, float], size: tuple[int, int]
+) -> Callable[[tuple[float, float]], tuple[int, int]]:
     min_x, min_y, max_x, max_y = bounds
     width, height = size
     usable_w, usable_h = width - 80, height - 110
@@ -88,7 +91,9 @@ def _projector(bounds: tuple[float, float, float, float], size: tuple[int, int])
     return project
 
 
-def _camera_projector(bounds: tuple[float, float, float, float], size: tuple[int, int]):
+def _camera_projector(
+    bounds: tuple[float, float, float, float], size: tuple[int, int]
+) -> Callable[[tuple[float, float]], tuple[int, int]]:
     """Project world bounds exactly as Blender's orthographic camera does."""
     min_x, min_y, max_x, max_y = bounds
     width, height = size

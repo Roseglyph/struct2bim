@@ -15,7 +15,7 @@ _PANEL = "#FFFFFF"
 _BACKGROUND = "#EDF2F6"
 
 
-def _font(size: int, bold: bool = False) -> ImageFont.ImageFont:
+def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     for name in ("DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf", "arialbd.ttf" if bold else "arial.ttf"):
         try:
             return ImageFont.truetype(name, size)
