@@ -102,3 +102,11 @@ def test_custom_split_ratios_are_respected_at_boundaries() -> None:
     assert not assignments[DatasetSplit.TRAIN]
     assert not assignments[DatasetSplit.VALIDATION]
     assert len(assignments[DatasetSplit.TEST]) == 30
+
+
+def test_small_curriculum_populates_every_enabled_split() -> None:
+    records = [_record(str(seed), seed, "clean") for seed in range(12)]
+    assignments = assign_grouped_splits(records, project_seed=24017)
+
+    assert all(assignments[split] for split in DatasetSplit)
+    assert sum(len(items) for items in assignments.values()) == 12

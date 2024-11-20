@@ -60,18 +60,31 @@ def assign_grouped_splits(
         grouped[record.scene_seed].append(record)
 
     result: dict[DatasetSplit, list[VariantT]] = {split: [] for split in DatasetSplit}
-    train_limit = resolved.train
-    validation_limit = resolved.train + resolved.validation
-    for scene_seed in sorted(grouped):
-        score = _stable_score(scene_seed, project_seed)
-        split = (
-            DatasetSplit.TRAIN
-            if score < train_limit
-            else DatasetSplit.VALIDATION
-            if score < validation_limit
-            else DatasetSplit.TEST
-        )
-        result[split].extend(sorted(grouped[scene_seed], key=lambda item: repr(item)))
+    active = [
+        (DatasetSplit.TRAIN, resolved.train),
+        (DatasetSplit.VALIDATION, resolved.validation),
+        (DatasetSplit.TEST, resolved.test),
+    ]
+    active = [(split, ratio) for split, ratio in active if ratio > 0]
+    ranked_seeds = sorted(grouped, key=lambda seed: (_stable_score(seed, project_seed), seed))
+    total = len(ranked_seeds)
+    counts = {split: int(total * ratio) for split, ratio in active}
+    if total >= len(active):
+        for split, _ in active:
+            counts[split] = max(1, counts[split])
+    while sum(counts.values()) < total:
+        split = max(active, key=lambda item: (item[1] * total - counts[item[0]], item[1]))[0]
+        counts[split] += 1
+    while sum(counts.values()) > total:
+        candidates = [(split, ratio) for split, ratio in active if counts[split] > 1]
+        split = min(candidates, key=lambda item: (item[1] * total - counts[item[0]], item[1]))[0]
+        counts[split] -= 1
+
+    cursor = 0
+    for split, _ in active:
+        for scene_seed in ranked_seeds[cursor : cursor + counts[split]]:
+            result[split].extend(sorted(grouped[scene_seed], key=lambda item: repr(item)))
+        cursor += counts[split]
     return {split: tuple(items) for split, items in result.items()}
 
 

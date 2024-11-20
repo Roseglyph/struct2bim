@@ -99,13 +99,19 @@ def main() -> None:
             cube(f"Column {index + 1}", (x, y, 0.02), (width, depth, 0.035), ink)
             bpy.context.object.rotation_euler[2] = rotation
 
-    render_width, render_height = 1600, 1200
-    aspect = render_width / render_height
-    framed_x, framed_y = span_x + pad * 2, span_y + pad * 2
-    # Blender's orthographic scale describes camera width; height follows the
-    # output aspect ratio.
-    ortho_width = max(framed_x, framed_y * aspect)
-    ortho_height = ortho_width / aspect
+    source = scene["source"]
+    transform = scene["transform"]
+    render_width, render_height = int(source["width_px"]), int(source["height_px"])
+    pixels_per_mm = float(transform["pixels_per_mm"])
+    origin_px = transform["origin_px"]
+    origin_world = transform.get("origin_world_mm", {"x": 0.0, "y": 0.0})
+    min_world_x = float(origin_world["x"]) + (0.0 - float(origin_px["x"])) / pixels_per_mm
+    max_world_x = float(origin_world["x"]) + (render_width - float(origin_px["x"])) / pixels_per_mm
+    max_world_y = float(origin_world["y"]) + float(origin_px["y"]) / pixels_per_mm
+    min_world_y = float(origin_world["y"]) + (float(origin_px["y"]) - render_height) / pixels_per_mm
+    center_x = (min_world_x + max_world_x) / 2000.0
+    center_y = (min_world_y + max_world_y) / 2000.0
+    ortho_width = (max_world_x - min_world_x) / 1000.0
     camera_data = bpy.data.cameras.new("Plan Camera")
     camera = bpy.data.objects.new("Plan Camera", camera_data)
     bpy.context.collection.objects.link(camera)
@@ -141,10 +147,10 @@ def main() -> None:
     sidecar = {
         "image_size": [render_width, render_height],
         "world_bounds_mm": [
-            (center_x - ortho_width / 2) * 1000,
-            (center_y - ortho_height / 2) * 1000,
-            (center_x + ortho_width / 2) * 1000,
-            (center_y + ortho_height / 2) * 1000,
+            min_world_x,
+            min_world_y,
+            max_world_x,
+            max_world_y,
         ],
         "seed": args.seed,
         "provenance": "synthetic_ground_truth",
