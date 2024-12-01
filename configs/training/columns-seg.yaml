@@ -1,6 +1,6 @@
 task: segment
 model: yolo11n-seg.pt
-dataset: outputs/dataset/dataset.yaml
+dataset: outputs/dataset/segment/dataset.yaml
 project: runs/segment
 name: columns-seg
 epochs: 100
@@ -11,4 +11,3 @@ device: auto
 seed: 42
 save_period: 5
 resume_checkpoint: null
-

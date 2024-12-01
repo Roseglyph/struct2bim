@@ -142,5 +142,18 @@ def validate_ifc(path: Path = typer.Argument(..., exists=True, dir_okay=False)) 
         raise typer.Exit(code=1)
 
 
+@app.command("validate-dataset")
+def validate_dataset_command(
+    dataset: Path = typer.Option(..., "--dataset", exists=True, file_okay=False),
+) -> None:
+    """Validate generated images, labels, manifest and leak-free splits."""
+    from struct2bim.validation import validate_dataset
+
+    result = validate_dataset(dataset)
+    typer.echo(result.model_dump_json(indent=2))
+    if not result.valid:
+        raise typer.Exit(code=1)
+
+
 if __name__ == "__main__":
     app()

@@ -36,6 +36,7 @@ from struct2bim.curriculum import (
     build_manifest,
     generate_reference_scene,
 )
+from struct2bim.validation import validate_dataset
 
 UInt8Image = npt.NDArray[np.uint8]
 
@@ -195,24 +196,25 @@ def build_dataset(
     )
     manifest_path = output_root / "manifest.json"
     manifest_path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8", newline="\n")
+    shutil.rmtree(staging, ignore_errors=True)
+    segmentation_yaml = _write_dataset_yaml(output_root, "segment")
+    obb_yaml = _write_dataset_yaml(output_root, "obb")
+    validation = validate_dataset(output_root)
     validation_path = output_root / "validation_report.json"
     validation_path.write_text(
         json.dumps(
             {
-                "valid": True,
-                "sample_count": len(sample_records),
+                **validation.model_dump(),
                 "scene_count": config.scene_count,
                 "manifest_sha256": manifest.sha256,
-                "split_counts": manifest.sample_counts_by_split,
             },
             indent=2,
         ),
         encoding="utf-8",
         newline="\n",
     )
-    shutil.rmtree(staging, ignore_errors=True)
-    segmentation_yaml = _write_dataset_yaml(output_root, "segment")
-    obb_yaml = _write_dataset_yaml(output_root, "obb")
+    if not validation.valid:
+        raise RuntimeError(f"Generated dataset failed validation: {validation.errors}")
     return DatasetBuildResult(
         root=output_root,
         manifest=manifest_path,

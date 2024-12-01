@@ -1,6 +1,6 @@
 task: obb
 model: yolo11n-obb.pt
-dataset: outputs/dataset/dataset-obb.yaml
+dataset: outputs/dataset/obb/dataset.yaml
 project: runs/obb
 name: columns-obb
 epochs: 100
@@ -11,4 +11,3 @@ device: auto
 seed: 42
 save_period: 5
 resume_checkpoint: null
-
