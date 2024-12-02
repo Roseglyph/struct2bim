@@ -68,3 +68,12 @@ def test_domain_reference_scene_exports_without_adapter_code(tmp_path) -> None:
     assert len(model.by_type("IfcCircleProfileDef")) == sum(
         entity.subtype.value == "circular" for entity in scene.entities
     )
+
+
+def test_ifc_export_is_byte_reproducible(tmp_path) -> None:
+    scene = generate_reference_scene(77)
+
+    first = export_ifc(scene, tmp_path / "first.ifc")
+    second = export_ifc(scene, tmp_path / "second.ifc")
+
+    assert first.read_bytes() == second.read_bytes()

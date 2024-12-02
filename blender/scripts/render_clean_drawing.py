@@ -43,6 +43,20 @@ def cube(name: str, center, dimensions, mat) -> None:
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 
 
+def text_label(name, value, location, size, mat, rotation=0.0) -> None:
+    curve = bpy.data.curves.new(name, type="FONT")
+    curve.body = str(value)
+    curve.align_x = "CENTER"
+    curve.align_y = "CENTER"
+    curve.size = size
+    curve.extrude = 0.002
+    obj = bpy.data.objects.new(name, curve)
+    bpy.context.collection.objects.link(obj)
+    obj.location = location
+    obj.rotation_euler[2] = rotation
+    obj.data.materials.append(mat)
+
+
 def entity_values(entity):
     center = entity.get("center_mm", [0.0, 0.0])
     dimensions = entity.get("dimensions_mm", {})
@@ -79,6 +93,7 @@ def main() -> None:
     ink = material("Drawing Ink", (0.045, 0.070, 0.090, 1.0))
     grid = material("Reference Grid", (0.38, 0.45, 0.50, 1.0))
     paper = material("Paper", (0.985, 0.99, 1.0, 1.0))
+    white = material("Label White", (1.0, 1.0, 1.0, 1.0))
     pad = max(span_x, span_y) * 0.18
     cube("Drawing Sheet", (center_x, center_y, -0.025), (span_x + pad * 2, span_y + pad * 2, 0.04), paper)
     # Inferred grid axes provide a readable structural context even when a
@@ -98,6 +113,33 @@ def main() -> None:
         else:
             cube(f"Column {index + 1}", (x, y, 0.02), (width, depth, 0.035), ink)
             bpy.context.object.rotation_euler[2] = rotation
+        text_label(f"Column Label {index + 1}", f"C{index + 1}", (x + 0.34, y + 0.26, 0.05), 0.22, ink)
+
+    # Drafting context is generated separately from document/photo augmentation.
+    bubble_radius = max(span_x, span_y) * 0.018
+    grid_by_id = scene.get("grids", [])
+    for index, axis in enumerate(grid_by_id):
+        start = axis["start_mm"]
+        end = axis["end_mm"]
+        start_x, start_y = float(start["x"]) / 1000.0, float(start["y"]) / 1000.0
+        end_x, end_y = float(end["x"]) / 1000.0, float(end["y"]) / 1000.0
+        location = (start_x, start_y, 0.025) if abs(end_y - start_y) > abs(end_x - start_x) else (end_x, end_y, 0.025)
+        bpy.ops.mesh.primitive_cylinder_add(vertices=48, radius=bubble_radius, depth=0.018, location=location)
+        bpy.context.object.name = f"Grid Bubble {index + 1}"
+        bpy.context.object.data.materials.append(ink)
+        text_label(
+            f"Grid Label {index + 1}",
+            axis.get("label", index + 1),
+            (location[0], location[1], 0.045),
+            bubble_radius * 1.05,
+            white,
+        )
+
+    dimension_y = min_y - pad * 0.62
+    cube("Overall X Dimension", (center_x, dimension_y, 0.01), (span_x, line_width * 1.4, 0.008), grid)
+    cube("Overall X Tick 1", (min_x, dimension_y, 0.01), (line_width * 1.4, 0.38, 0.008), grid)
+    cube("Overall X Tick 2", (max_x, dimension_y, 0.01), (line_width * 1.4, 0.38, 0.008), grid)
+    text_label("Overall X Text", f"{span_x * 1000:.0f} mm", (center_x, dimension_y - 0.3, 0.04), 0.22, ink)
 
     source = scene["source"]
     transform = scene["transform"]

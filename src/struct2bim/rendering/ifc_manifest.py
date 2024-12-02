@@ -40,11 +40,21 @@ def build_ifc_render_manifest(ifc_path: Path, output: Path) -> Path:
                 "faces": [faces[index : index + 3] for index in range(0, len(faces), 3)],
             }
         )
+    lines: list[dict[str, Any]] = []
+    for grid in model.by_type("IfcGrid"):
+        for axis in (*grid.UAxes, *grid.VAxes):
+            curve = axis.AxisCurve
+            if not curve.is_a("IfcPolyline"):
+                continue
+            coordinates = [tuple(float(value) for value in point.Coordinates) for point in curve.Points]
+            if len(coordinates) >= 2:
+                lines.append({"label": axis.AxisTag, "points": coordinates})
     manifest = {
         "schema_version": "1.0",
         "source": str(ifc_path.name),
         "coordinate_units": "metres",
         "meshes": meshes,
+        "grid_lines": lines,
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(manifest, indent=2), encoding="utf-8")

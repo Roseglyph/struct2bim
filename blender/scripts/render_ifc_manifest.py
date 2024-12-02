@@ -44,6 +44,7 @@ def main() -> None:
     column_mat = make_material("Structural Columns", (0.12, 0.38, 0.66, 1.0))
     slab_mat = make_material("Slab", (0.72, 0.78, 0.83, 1.0))
     neutral_mat = make_material("Other BIM Elements", (0.36, 0.46, 0.54, 1.0))
+    grid_mat = make_material("IFC Grid Axes", (0.38, 0.48, 0.58, 1.0))
     all_vertices = []
     for item in manifest.get("meshes", []):
         vertices = [tuple(float(value) for value in vertex) for vertex in item.get("vertices", [])]
@@ -58,6 +59,22 @@ def main() -> None:
         ifc_type = str(item.get("ifc_type", ""))
         obj.data.materials.append(column_mat if ifc_type == "IfcColumn" else slab_mat if ifc_type == "IfcSlab" else neutral_mat)
         all_vertices.extend(vertices)
+    for index, item in enumerate(manifest.get("grid_lines", [])):
+        points = [tuple(float(value) for value in point) for point in item.get("points", [])]
+        if len(points) < 2:
+            continue
+        curve_data = bpy.data.curves.new(f"IFC Grid {index + 1}", type="CURVE")
+        curve_data.dimensions = "3D"
+        curve_data.bevel_depth = 0.018
+        curve_data.bevel_resolution = 2
+        spline = curve_data.splines.new("POLY")
+        spline.points.add(len(points) - 1)
+        for point, coordinates in zip(spline.points, points, strict=True):
+            point.co = (*coordinates[:2], 0.02, 1.0)
+        obj = bpy.data.objects.new(f"IFC Grid {item.get('label', index + 1)}", curve_data)
+        bpy.context.collection.objects.link(obj)
+        obj.data.materials.append(grid_mat)
+        all_vertices.extend((*coordinates[:2], 0.02) for coordinates in points)
     if not all_vertices:
         raise RuntimeError("The IFC render manifest contains no renderable geometry")
     xs, ys, zs = zip(*all_vertices)
@@ -72,7 +89,7 @@ def main() -> None:
     ground.name = "Showcase Ground (not IFC)"
     ground.dimensions = (base_x, base_y, 0.08)
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    ground.data.materials.append(make_material("Ground", (0.92, 0.94, 0.96, 1.0)))
+    ground.data.materials.append(make_material("Ground", (0.96, 0.97, 0.98, 1.0)))
     camera_data = bpy.data.cameras.new("Isometric Camera")
     camera = bpy.data.objects.new("Isometric Camera", camera_data)
     bpy.context.collection.objects.link(camera)
@@ -104,6 +121,7 @@ def main() -> None:
     render.image_settings.color_depth = "8"
     render.filepath = str(args.output)
     render.film_transparent = False
+    bpy.context.scene.view_settings.look = "AgX - Medium High Contrast"
     args.output.parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.render.render(write_still=True)
 

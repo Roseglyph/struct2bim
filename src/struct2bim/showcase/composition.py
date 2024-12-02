@@ -25,7 +25,10 @@ def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.I
 
 
 def _fit(image: Image.Image, size: tuple[int, int]) -> Image.Image:
-    return ImageOps.fit(image.convert("RGB"), size, method=Image.Resampling.LANCZOS)
+    contained = ImageOps.contain(image.convert("RGB"), size, method=Image.Resampling.LANCZOS)
+    panel = Image.new("RGB", size, "white")
+    panel.paste(contained, ((size[0] - contained.width) // 2, (size[1] - contained.height) // 2))
+    return panel
 
 
 def compose_pipeline_hero(
