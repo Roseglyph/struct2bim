@@ -155,5 +155,43 @@ def validate_dataset_command(
         raise typer.Exit(code=1)
 
 
+@app.command()
+def infer(
+    source: Path = typer.Option(..., "--source", exists=True, dir_okay=False),
+    weights: Path = typer.Option(..., "--weights", dir_okay=False),
+    output: Path = typer.Option(Path("outputs/inference"), "--output"),
+    confidence: float = typer.Option(0.25, "--confidence", min=0.0, max=1.0),
+    millimetres_per_pixel: float | None = typer.Option(None, "--mm-per-pixel", min=0.000001),
+    storey_height_mm: float = typer.Option(3200.0, "--storey-height-mm", min=1.0),
+) -> None:
+    """Run supplied weights on image/PDF/DXF; add IFC when scale is provided."""
+    from struct2bim.training import run_inference
+
+    report = run_inference(
+        source,
+        weights,
+        output,
+        confidence=confidence,
+        millimetres_per_pixel=millimetres_per_pixel,
+        storey_height_mm=storey_height_mm,
+    )
+    typer.echo(f"Inference report: {report.resolve()}")
+
+
+@app.command()
+def evaluate(
+    weights: Path = typer.Option(..., "--weights", dir_okay=False),
+    dataset: Path = typer.Option(..., "--dataset", exists=True, file_okay=False),
+    data: Path = typer.Option(..., "--data", exists=True, dir_okay=False),
+    output: Path = typer.Option(Path("outputs/evaluation/report.json"), "--output"),
+    split: str = typer.Option("test", "--split"),
+) -> None:
+    """Evaluate supplied weights and save checkpoint-linked actual metrics."""
+    from struct2bim.training import run_evaluation
+
+    report = run_evaluation(weights, dataset, data, output, split=split)
+    typer.echo(f"Evaluation report: {report.resolve()}")
+
+
 if __name__ == "__main__":
     app()
