@@ -46,6 +46,18 @@ def test_reference_scene_has_grid_and_column_curriculum_coverage() -> None:
     assert all(entity.storey_id == "L01" for entity in scene.entities)
 
 
+def test_curriculum_supports_isolated_and_irregular_layouts() -> None:
+    isolated = generate_reference_scene(20, ReferenceSceneConfig(layout_mode="isolated"))
+    irregular = generate_reference_scene(20, ReferenceSceneConfig(layout_mode="irregular"))
+    regular = generate_reference_scene(20, ReferenceSceneConfig(layout_mode="regular"))
+
+    assert len(isolated.entities) == 1
+    assert len(isolated.grids) == 2
+    assert [entity.center_mm for entity in irregular.entities] != [
+        entity.center_mm for entity in regular.entities
+    ]
+
+
 def test_all_reference_footprints_project_inside_canvas() -> None:
     scene = generate_reference_scene(91)
     for entity in scene.entities:

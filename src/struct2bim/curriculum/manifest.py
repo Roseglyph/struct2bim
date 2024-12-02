@@ -20,6 +20,12 @@ class SampleRecord(DomainModel):
     segmentation_label_path: str = Field(min_length=1)
     obb_label_path: str = Field(min_length=1)
     entity_counts: dict[str, int]
+    semantic_mask_path: str | None = None
+    instance_mask_path: str | None = None
+    metadata_path: str | None = None
+    scene_path: str | None = None
+    dxf_path: str | None = None
+    artifact_sha256: dict[str, str] = Field(default_factory=dict)
 
 
 class ManifestSample(SampleRecord):

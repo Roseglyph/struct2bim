@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+import hashlib
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -74,6 +75,28 @@ def validate_dataset(root: Path) -> DatasetValidationReport:
         ):
             errors.extend(_validate_label(root / relative, expected_values=expected_values))
             checked += 1
+        for optional_path in (
+            sample.semantic_mask_path,
+            sample.instance_mask_path,
+            sample.metadata_path,
+            sample.scene_path,
+            sample.dxf_path,
+        ):
+            if optional_path is not None and not (root / optional_path).is_file():
+                errors.append(f"missing declared artifact: {root / optional_path}")
+        for artifact, expected_hash in sample.artifact_sha256.items():
+            path_by_name = {
+                "image": root / sample.image_path,
+                "segmentation_label": root / sample.segmentation_label_path,
+                "obb_label": root / sample.obb_label_path,
+                "semantic_mask": root / sample.semantic_mask_path if sample.semantic_mask_path else None,
+                "instance_mask": root / sample.instance_mask_path if sample.instance_mask_path else None,
+            }
+            artifact_path = path_by_name.get(artifact)
+            if artifact_path is not None and artifact_path.is_file():
+                actual_hash = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+                if actual_hash != expected_hash:
+                    errors.append(f"checksum mismatch: {artifact_path}")
     for split in ("train", "validation", "test"):
         if split_counts[split] == 0:
             errors.append(f"split is empty: {split}")

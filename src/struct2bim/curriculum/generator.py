@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 import string
+from typing import Literal
 
 from pydantic import Field, model_validator
 
@@ -32,6 +33,8 @@ class ReferenceSceneConfig(DomainModel):
     spacing_y_mm: float = Field(default=4500.0, gt=0)
     storey_height_mm: float = Field(default=3200.0, gt=0)
     margin_mm: float = Field(default=800.0, ge=0)
+    layout_mode: Literal["isolated", "regular", "irregular"] = "regular"
+    irregularity_ratio: float = Field(default=0.12, ge=0.0, le=0.25)
 
     @model_validator(mode="after")
     def validate_canvas_fit(self) -> ReferenceSceneConfig:
@@ -91,8 +94,23 @@ def generate_reference_scene(
 
     resolved = config or ReferenceSceneConfig()
     rng = random.Random(scene_seed)
-    x_positions = _centered_positions(resolved.columns_x, resolved.spacing_x_mm)
-    y_positions = _centered_positions(resolved.columns_y, resolved.spacing_y_mm)
+    x_positions: tuple[float, ...]
+    y_positions: tuple[float, ...]
+    if resolved.layout_mode == "isolated":
+        x_positions = (0.0,)
+        y_positions = (0.0,)
+    else:
+        x_positions = _centered_positions(resolved.columns_x, resolved.spacing_x_mm)
+        y_positions = _centered_positions(resolved.columns_y, resolved.spacing_y_mm)
+        if resolved.layout_mode == "irregular":
+            x_positions = tuple(
+                value + rng.uniform(-1, 1) * resolved.spacing_x_mm * resolved.irregularity_ratio
+                for value in x_positions
+            )
+            y_positions = tuple(
+                value + rng.uniform(-1, 1) * resolved.spacing_y_mm * resolved.irregularity_ratio
+                for value in y_positions
+            )
     min_x, max_x = x_positions[0] - resolved.margin_mm, x_positions[-1] + resolved.margin_mm
     min_y, max_y = y_positions[0] - resolved.margin_mm, y_positions[-1] + resolved.margin_mm
 
@@ -121,7 +139,7 @@ def generate_reference_scene(
         id="L01", name="Ground Floor", elevation_mm=0.0, height_mm=resolved.storey_height_mm
     )
     entities = tuple(
-        _column_for_position(index=index, x=x, y=y, storey=storey, rng=rng)
+        _column_for_position(index=index + scene_seed, x=x, y=y, storey=storey, rng=rng)
         for index, (y, x) in enumerate(
             (position for y_value in y_positions for position in ((y_value, x_value) for x_value in x_positions))
         )

@@ -1,6 +1,7 @@
 project_seed: 24017
 scene_seed_start: 1000
 scene_count: 12
+layout_modes: [isolated, regular, irregular]
 variants:
   - clean
   - scan
@@ -15,4 +16,3 @@ scene:
   spacing_y_mm: 4500
   storey_height_mm: 3200
   margin_mm: 900
-

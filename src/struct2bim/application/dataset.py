@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import shutil
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol, cast
+from typing import Literal, Protocol, cast
 
 import cv2
 import numpy as np
@@ -37,6 +38,7 @@ from struct2bim.curriculum import (
     generate_reference_scene,
 )
 from struct2bim.validation import validate_dataset
+from struct2bim.exporters import export_dxf
 
 UInt8Image = npt.NDArray[np.uint8]
 
@@ -59,6 +61,9 @@ class DatasetBuildConfig(BaseModel):
         AugmentationProfile.PERSPECTIVE_PHOTO,
     )
     scene: ReferenceSceneConfig = ReferenceSceneConfig()
+    layout_modes: tuple[Literal["isolated", "regular", "irregular"], ...] = Field(
+        default=("isolated", "regular", "irregular"), min_length=1
+    )
 
     @classmethod
     def from_yaml(cls, path: Path) -> "DatasetBuildConfig":
@@ -131,6 +136,28 @@ def _entity_counts(annotations: AnnotationSet) -> dict[str, int]:
     return dict(sorted(counts.items()))
 
 
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _write_masks(annotations: AnnotationSet, semantic_path: Path, instance_path: Path) -> None:
+    semantic = np.zeros((annotations.height_px, annotations.width_px), dtype=np.uint8)
+    instances = np.zeros((annotations.height_px, annotations.width_px), dtype=np.uint16)
+    for index, record in enumerate(annotations.records, 1):
+        polygon = np.asarray(
+            [[round(point.x), round(point.y)] for point in record.polygon_px.points],
+            dtype=np.int32,
+        )
+        cv2.fillPoly(semantic, [polygon], (record.class_id + 1,))
+        cv2.fillPoly(instances, [polygon], (index,))
+    semantic_path.parent.mkdir(parents=True, exist_ok=True)
+    instance_path.parent.mkdir(parents=True, exist_ok=True)
+    if not cv2.imwrite(str(semantic_path), semantic):
+        raise RuntimeError(f"Failed to write semantic mask: {semantic_path}")
+    if not cv2.imwrite(str(instance_path), instances):
+        raise RuntimeError(f"Failed to write instance mask: {instance_path}")
+
+
 def build_dataset(
     config: DatasetBuildConfig,
     output_root: Path,
@@ -144,11 +171,16 @@ def build_dataset(
     split_by_seed = _split_map(config)
     sample_records: list[SampleRecord] = []
 
-    for scene_seed in range(config.scene_seed_start, config.scene_seed_start + config.scene_count):
-        scene = generate_reference_scene(scene_seed, config.scene)
+    for scene_index, scene_seed in enumerate(
+        range(config.scene_seed_start, config.scene_seed_start + config.scene_count)
+    ):
+        layout_mode = config.layout_modes[scene_index % len(config.layout_modes)]
+        scene_config = config.scene.model_copy(update={"layout_mode": layout_mode})
+        scene = generate_reference_scene(scene_seed, scene_config)
         scene_path = scene_directory / f"scene_{scene_seed}.json"
         scene_path.parent.mkdir(parents=True, exist_ok=True)
         scene_path.write_text(scene.canonical_json(), encoding="utf-8", newline="\n")
+        dxf_path = export_dxf(scene, scene_directory / f"scene_{scene_seed}.dxf")
         clean_path = staging / f"scene_{scene_seed}_clean.png"
         renderer.render_clean_drawing(scene_path, clean_path, seed=scene_seed)
         loaded = cv2.imread(str(clean_path), cv2.IMREAD_COLOR)
@@ -176,6 +208,30 @@ def build_dataset(
             obb_label = output_root / "obb" / "labels" / split.value / f"{sample_id}.txt"
             write_yolo_labels(segmentation_label, export_yolo_segmentation(transformed))
             write_yolo_labels(obb_label, export_yolo_obb(transformed))
+            semantic_mask = output_root / "artifacts" / "semantic_masks" / split.value / f"{sample_id}.png"
+            instance_mask = output_root / "artifacts" / "instance_masks" / split.value / f"{sample_id}.png"
+            _write_masks(transformed, semantic_mask, instance_mask)
+            metadata_path = output_root / "artifacts" / "metadata" / split.value / f"{sample_id}.json"
+            metadata_path.parent.mkdir(parents=True, exist_ok=True)
+            metadata_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "sample_id": sample_id,
+                        "scene_seed": scene_seed,
+                        "layout_mode": layout_mode,
+                        "augmentation_profile": profile.value,
+                        "split": split.value,
+                        "provenance": "synthetic_ground_truth",
+                        "homography": augmented.homography.tolist(),
+                        "scene": scene_path.relative_to(output_root).as_posix(),
+                        "dxf": dxf_path.relative_to(output_root).as_posix(),
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+                newline="\n",
+            )
             sample_records.append(
                 SampleRecord(
                     sample_id=sample_id,
@@ -185,6 +241,18 @@ def build_dataset(
                     segmentation_label_path=segmentation_label.relative_to(output_root).as_posix(),
                     obb_label_path=obb_label.relative_to(output_root).as_posix(),
                     entity_counts=_entity_counts(transformed),
+                    semantic_mask_path=semantic_mask.relative_to(output_root).as_posix(),
+                    instance_mask_path=instance_mask.relative_to(output_root).as_posix(),
+                    metadata_path=metadata_path.relative_to(output_root).as_posix(),
+                    scene_path=scene_path.relative_to(output_root).as_posix(),
+                    dxf_path=dxf_path.relative_to(output_root).as_posix(),
+                    artifact_sha256={
+                        "image": _sha256(common_image),
+                        "segmentation_label": _sha256(segmentation_label),
+                        "obb_label": _sha256(obb_label),
+                        "semantic_mask": _sha256(semantic_mask),
+                        "instance_mask": _sha256(instance_mask),
+                    },
                 )
             )
 
