@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from math import cos, radians, sin
 from pathlib import Path
 from typing import Any, Iterable, Mapping
+import uuid
 
 import ifcopenshell
 import ifcopenshell.guid
@@ -20,8 +21,9 @@ class IfcValidationResult:
     counts: dict[str, int]
 
 
-def _guid() -> str:
-    return str(ifcopenshell.guid.new())  # type: ignore[no-untyped-call]
+def _guid(key: str) -> str:
+    """Return a stable IFC GUID so identical canonical scenes reproduce exactly."""
+    return str(ifcopenshell.guid.compress(uuid.uuid5(uuid.NAMESPACE_URL, key).hex))  # type: ignore[no-untyped-call]
 
 
 def _point(model: ifcopenshell.file, coordinates: Iterable[float]) -> Any:
@@ -104,11 +106,12 @@ def _attach_provenance(model: ifcopenshell.file, product: Any, entity: Mapping[s
         "GeneratorVersion": scene.get("generator_version", "struct2bim"),
     }
     properties = tuple(_single_value(model, key, value) for key, value in values.items())
+    product_key = str(product.GlobalId)
     pset = model.create_entity(
-        "IfcPropertySet", GlobalId=_guid(), Name="Pset_Struct2BIMProvenance",
+        "IfcPropertySet", GlobalId=_guid(f"{product_key}:provenance"), Name="Pset_Struct2BIMProvenance",
         HasProperties=properties)
     model.create_entity(
-        "IfcRelDefinesByProperties", GlobalId=_guid(), RelatedObjects=(product,),
+        "IfcRelDefinesByProperties", GlobalId=_guid(f"{product_key}:provenance-relation"), RelatedObjects=(product,),
         RelatingPropertyDefinition=pset)
 
 
@@ -133,15 +136,15 @@ def export_ifc(scene: Any, destination: str | Path) -> Path:
         WorldCoordinateSystem=model.create_entity("IfcAxis2Placement3D", Location=origin))
     project_name = str(data.get("project", {}).get("name", "Struct2BIM Project"))
     project = model.create_entity(
-        "IfcProject", GlobalId=_guid(), Name=project_name,
+        "IfcProject", GlobalId=_guid(f"{project_name}:project"), Name=project_name,
         RepresentationContexts=(context,), UnitsInContext=_create_units(model))
     site_placement = _local_placement(model, None, (0, 0, 0))
-    site = model.create_entity("IfcSite", GlobalId=_guid(), Name="Site", ObjectPlacement=site_placement)
+    site = model.create_entity("IfcSite", GlobalId=_guid(f"{project_name}:site"), Name="Site", ObjectPlacement=site_placement)
     building_placement = _local_placement(model, site_placement, (0, 0, 0))
     building = model.create_entity(
-        "IfcBuilding", GlobalId=_guid(), Name="Building", ObjectPlacement=building_placement)
-    model.create_entity("IfcRelAggregates", GlobalId=_guid(), RelatingObject=project, RelatedObjects=(site,))
-    model.create_entity("IfcRelAggregates", GlobalId=_guid(), RelatingObject=site, RelatedObjects=(building,))
+        "IfcBuilding", GlobalId=_guid(f"{project_name}:building"), Name="Building", ObjectPlacement=building_placement)
+    model.create_entity("IfcRelAggregates", GlobalId=_guid(f"{project_name}:project-site"), RelatingObject=project, RelatedObjects=(site,))
+    model.create_entity("IfcRelAggregates", GlobalId=_guid(f"{project_name}:site-building"), RelatingObject=site, RelatedObjects=(building,))
 
     storeys: dict[str, Any] = {}
     storey_products: dict[str, list[Any]] = {}
@@ -149,12 +152,12 @@ def export_ifc(scene: Any, destination: str | Path) -> Path:
         elevation_m = float(item.get("elevation_mm", 0)) / 1000
         placement = _local_placement(model, building_placement, (0, 0, elevation_m))
         storey = model.create_entity(
-            "IfcBuildingStorey", GlobalId=_guid(), Name=str(item.get("name", item["id"])),
+            "IfcBuildingStorey", GlobalId=_guid(f"{project_name}:storey:{item['id']}"), Name=str(item.get("name", item["id"])),
             ObjectPlacement=placement, Elevation=elevation_m)
         storeys[str(item["id"])] = storey
         storey_products[str(item["id"])] = []
     model.create_entity(
-        "IfcRelAggregates", GlobalId=_guid(), RelatingObject=building,
+        "IfcRelAggregates", GlobalId=_guid(f"{project_name}:building-storeys"), RelatingObject=building,
         RelatedObjects=tuple(storeys.values()))
 
     grid_axes: list[tuple[Mapping[str, Any], Any]] = []
@@ -173,7 +176,7 @@ def export_ifc(scene: Any, destination: str | Path) -> Path:
                 model, storey.ObjectPlacement, (center[0] / 1000, center[1] / 1000, 0),
                 float(entity.get("rotation_deg", 0)))
             product = model.create_entity(
-                "IfcColumn", GlobalId=_guid(), Name=str(entity["id"]),
+                "IfcColumn", GlobalId=_guid(f"{project_name}:column:{entity['id']}"), Name=str(entity["id"]),
                 Tag=str(entity.get("label", entity.get("classification", {}).get("label", entity["id"]))),
                 ObjectPlacement=placement,
                 Representation=(_circle_representation(model, context, float(dimensions["diameter"]) / 1000, height)
@@ -203,7 +206,7 @@ def export_ifc(scene: Any, destination: str | Path) -> Path:
         if u_axes and v_axes:
             first_storey = storeys[default_storey_id]
             grid = model.create_entity(
-                "IfcGrid", GlobalId=_guid(), Name="Structural Grid",
+                "IfcGrid", GlobalId=_guid(f"{project_name}:grid"), Name="Structural Grid",
                 ObjectPlacement=_local_placement(model, first_storey.ObjectPlacement, (0, 0, 0)),
                 UAxes=tuple(u_axes), VAxes=tuple(v_axes))
             storey_products[default_storey_id].append(grid)
@@ -211,7 +214,7 @@ def export_ifc(scene: Any, destination: str | Path) -> Path:
     for storey_id, products in storey_products.items():
         if products:
             model.create_entity(
-                "IfcRelContainedInSpatialStructure", GlobalId=_guid(),
+                "IfcRelContainedInSpatialStructure", GlobalId=_guid(f"{project_name}:contains:{storey_id}"),
                 RelatedElements=tuple(products), RelatingStructure=storeys[storey_id])
 
     model.write(str(path))
