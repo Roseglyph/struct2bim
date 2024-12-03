@@ -158,7 +158,7 @@ def _write_masks(annotations: AnnotationSet, semantic_path: Path, instance_path:
         raise RuntimeError(f"Failed to write instance mask: {instance_path}")
 
 
-def build_dataset(
+def _build_dataset_in_place(
     config: DatasetBuildConfig,
     output_root: Path,
     renderer: CleanDrawingRenderer,
@@ -290,3 +290,34 @@ def build_dataset(
         obb_yaml=obb_yaml,
         sample_count=len(sample_records),
     )
+
+
+def build_dataset(
+    config: DatasetBuildConfig,
+    output_root: Path,
+    renderer: CleanDrawingRenderer,
+) -> DatasetBuildResult:
+    """Build transactionally, replacing an older generated dataset only after success."""
+    final_root = output_root.resolve()
+    temporary_root = final_root.with_name(f".{final_root.name}.building")
+    shutil.rmtree(temporary_root, ignore_errors=True)
+    try:
+        staged = _build_dataset_in_place(config, temporary_root, renderer)
+        if final_root.exists():
+            shutil.rmtree(final_root)
+        temporary_root.replace(final_root)
+        segmentation_yaml = _write_dataset_yaml(final_root, "segment")
+        obb_yaml = _write_dataset_yaml(final_root, "obb")
+        validation = validate_dataset(final_root)
+        if not validation.valid:
+            raise RuntimeError(f"Installed dataset failed validation: {validation.errors}")
+        return DatasetBuildResult(
+            root=final_root,
+            manifest=final_root / staged.manifest.name,
+            segmentation_yaml=segmentation_yaml,
+            obb_yaml=obb_yaml,
+            sample_count=staged.sample_count,
+        )
+    except Exception:
+        shutil.rmtree(temporary_root, ignore_errors=True)
+        raise
