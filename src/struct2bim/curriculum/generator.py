@@ -53,10 +53,10 @@ def _centered_positions(count: int, spacing: float) -> tuple[float, ...]:
 
 
 def _column_for_position(
-    *, index: int, x: float, y: float, storey: Storey, rng: random.Random
+    *, index: int, variation_index: int, x: float, y: float, storey: Storey, rng: random.Random
 ) -> StructuralEntity:
     # A fixed cycle guarantees ontology coverage; seeded choices vary the exact dimensions.
-    variation = index % 4
+    variation = variation_index % 4
     if variation == 2:
         diameter = float(rng.choice((350, 400, 450, 500)))
         subtype = ColumnShape.CIRCULAR
@@ -139,7 +139,14 @@ def generate_reference_scene(
         id="L01", name="Ground Floor", elevation_mm=0.0, height_mm=resolved.storey_height_mm
     )
     entities = tuple(
-        _column_for_position(index=index + scene_seed, x=x, y=y, storey=storey, rng=rng)
+        _column_for_position(
+            index=index,
+            variation_index=index + scene_seed,
+            x=x,
+            y=y,
+            storey=storey,
+            rng=rng,
+        )
         for index, (y, x) in enumerate(
             (position for y_value in y_positions for position in ((y_value, x_value) for x_value in x_positions))
         )

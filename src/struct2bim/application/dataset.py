@@ -175,7 +175,10 @@ def _build_dataset_in_place(
         range(config.scene_seed_start, config.scene_seed_start + config.scene_count)
     ):
         layout_mode = config.layout_modes[scene_index % len(config.layout_modes)]
-        scene_config = config.scene.model_copy(update={"layout_mode": layout_mode})
+        update: dict[str, object] = {"layout_mode": layout_mode}
+        if layout_mode == "isolated":
+            update["pixels_per_mm"] = min(config.scene.pixels_per_mm * 4.0, 0.5)
+        scene_config = config.scene.model_copy(update=update)
         scene = generate_reference_scene(scene_seed, scene_config)
         scene_path = scene_directory / f"scene_{scene_seed}.json"
         scene_path.parent.mkdir(parents=True, exist_ok=True)
