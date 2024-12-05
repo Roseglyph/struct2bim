@@ -2,10 +2,12 @@
 
 from .builder import ShowcaseArtifacts, build_showcase
 from .composition import compose_pipeline_hero, compose_variation_gallery
+from .dataset_preview import render_dataset_preview
 
 __all__ = [
     "ShowcaseArtifacts",
     "build_showcase",
     "compose_pipeline_hero",
     "compose_variation_gallery",
+    "render_dataset_preview",
 ]

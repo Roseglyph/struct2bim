@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import json
+import hashlib
 
 import typer
 
@@ -40,6 +41,10 @@ def _project_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def _blender_runner() -> object:
     from struct2bim.rendering import BlenderRunner, BlenderToolConfig
 
@@ -68,7 +73,7 @@ def showcase(
 ) -> None:
     """Build the verified synthetic-ground-truth-to-IFC showcase."""
     from struct2bim.curriculum import ReferenceSceneConfig, generate_reference_scene
-    from struct2bim.exporters import export_dxf, export_ifc, validate_ifc_file
+    from struct2bim.exporters import export_dxf, export_ifc, validate_dxf_file, validate_ifc_file
     from struct2bim.showcase import build_showcase
     from struct2bim.validation import validate_scene
 
@@ -88,6 +93,7 @@ def showcase(
     scene_path = output / "structural_scene.json"
     scene_path.write_text(scene.canonical_json(), encoding="utf-8", newline="\n")
     dxf_path = export_dxf(scene, output / "model.dxf")
+    dxf_report = validate_dxf_file(dxf_path, expected_scene=scene)
     ifc_path = export_ifc(scene, output / "model.ifc")
     ifc_report = validate_ifc_file(ifc_path, expected_scene=scene)
     if not ifc_report.is_valid:
@@ -97,12 +103,22 @@ def showcase(
         "scene_valid": scene_report.is_valid,
         "scene_warnings": [issue.message for issue in scene_report.warnings],
         "ifc_valid": ifc_report.is_valid,
+        "dxf_valid": dxf_report.is_valid,
+        "dxf_counts": dxf_report.counts,
+        "dxf_units": dxf_report.units,
         "ifc_counts": ifc_report.counts,
         "dxf": dxf_path.name,
         "ifc": ifc_path.name,
         "hero": artifacts.hero.name,
         "provenance": "synthetic_ground_truth",
         "model_predictions_included": False,
+        "sha256": {
+            "scene": _sha256(scene_path),
+            "dxf": _sha256(dxf_path),
+            "ifc": _sha256(ifc_path),
+            "hero": _sha256(artifacts.hero),
+            "gallery": _sha256(artifacts.gallery),
+        },
     }
     (output / "verification_report.json").write_text(
         json.dumps(report, indent=2), encoding="utf-8", newline="\n"
@@ -138,6 +154,27 @@ def validate_ifc(path: Path = typer.Argument(..., exists=True, dir_okay=False)) 
 
     result = validate_ifc_file(path)
     typer.echo(json.dumps({"valid": result.is_valid, "errors": result.errors, "counts": result.counts}, indent=2))
+    if not result.is_valid:
+        raise typer.Exit(code=1)
+
+
+@app.command("validate-dxf")
+def validate_dxf(path: Path = typer.Argument(..., exists=True, dir_okay=False)) -> None:
+    """Reopen a DXF and report units, layers, and structural contents."""
+    from struct2bim.exporters import validate_dxf_file
+
+    result = validate_dxf_file(path)
+    typer.echo(
+        json.dumps(
+            {
+                "valid": result.is_valid,
+                "errors": result.errors,
+                "counts": result.counts,
+                "units": result.units,
+            },
+            indent=2,
+        )
+    )
     if not result.is_valid:
         raise typer.Exit(code=1)
 
@@ -191,6 +228,19 @@ def evaluate(
 
     report = run_evaluation(weights, dataset, data, output, split=split)
     typer.echo(f"Evaluation report: {report.resolve()}")
+
+
+@app.command("preview-dataset")
+def preview_dataset(
+    dataset: Path = typer.Option(..., "--dataset", exists=True, file_okay=False),
+    output: Path = typer.Option(Path("outputs/dataset_preview.png"), "--output"),
+    limit: int = typer.Option(6, "--limit", min=1, max=24),
+) -> None:
+    """Render a human-review contact sheet from generated images and labels."""
+    from struct2bim.showcase import render_dataset_preview
+
+    result = render_dataset_preview(dataset, output, limit=limit)
+    typer.echo(f"Dataset preview: {result.resolve()}")
 
 
 if __name__ == "__main__":
