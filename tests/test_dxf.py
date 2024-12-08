@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import ezdxf
 
-from struct2bim.exporters import export_dxf
+from struct2bim.exporters import export_dxf, validate_dxf_file
 from struct2bim.curriculum import generate_reference_scene
 
 
@@ -35,3 +35,14 @@ def test_domain_reference_scene_exports_all_entities(tmp_path) -> None:
     modelspace = document.modelspace()
     assert len(list(modelspace.query("LWPOLYLINE"))) + len(list(modelspace.query("CIRCLE"))) == len(scene.entities)
     assert len(list(modelspace.query("LINE[layer=='S2B_GRIDS']"))) == len(scene.grids)
+
+
+def test_dxf_reopen_validation_reports_units_and_counts(tmp_path) -> None:
+    scene = generate_reference_scene(11)
+    path = export_dxf(scene, tmp_path / "reference.dxf")
+
+    result = validate_dxf_file(path, scene)
+
+    assert result.is_valid
+    assert result.units == "Millimeters"
+    assert result.counts["columns"] == len(scene.entities)
