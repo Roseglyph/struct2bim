@@ -7,6 +7,8 @@ name = "struct2bim"
 version = "0.1.0"
 description = "Synthetic structural drawing datasets and BIM/IFC generation tools."
 readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Mohamed Hussein" }]
 requires-python = ">=3.11,<3.12"
 dependencies = [
   "albumentations==1.4.24",
@@ -49,4 +51,3 @@ target-version = "py311"
 [tool.mypy]
 python_version = "3.11"
 strict = true
-

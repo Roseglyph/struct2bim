@@ -1,0 +1,21 @@
+name: structural_reference_curriculum
+version: "1.0"
+status: demonstrative_not_for_design
+units: mm
+sources:
+  - title: Housing and Building National Research Center code catalogue
+    url: https://hbrc.edu.eg/ar/fields-of-work/codes
+  - title: Egyptian concrete-structures code catalogue entry
+    url: https://hbrc.edu.eg/ar/component/content/article/153-2023-01-17-06-11-29/560-egyptian-code?Itemid=523
+disclaimer: >-
+  Sources inform terminology and scenario taxonomy only. Numeric ranges below are
+  illustrative curriculum parameters and do not certify current code compliance.
+columns:
+  rectangular_widths: [300, 350, 400, 450]
+  rectangular_depths: [300, 350, 400, 450, 500, 600, 700]
+  circular_diameters: [350, 400, 450, 500]
+  rotations_degrees: [0, 30, 45, 90]
+layouts:
+  modes: [isolated, regular, irregular]
+  nominal_x_spacing: 4000
+  nominal_y_spacing: 4500
