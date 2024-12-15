@@ -1,0 +1,18 @@
+{
+  "scene_valid": true,
+  "scene_warnings": [],
+  "ifc_valid": true,
+  "ifc_counts": {
+    "IfcProject": 1,
+    "IfcSite": 1,
+    "IfcBuilding": 1,
+    "IfcBuildingStorey": 1,
+    "IfcColumn": 12,
+    "IfcGrid": 1
+  },
+  "dxf": "model.dxf",
+  "ifc": "model.ifc",
+  "hero": "pipeline_overview.png",
+  "provenance": "synthetic_ground_truth",
+  "model_predictions_included": false
+}

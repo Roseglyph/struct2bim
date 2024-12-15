@@ -1,0 +1,382 @@
+{
+  "schema_version": "1.0",
+  "project": {
+    "name": "struct2bim_reference",
+    "units": "mm"
+  },
+  "source": {
+    "type": "synthetic_ground_truth",
+    "width_px": 1600,
+    "height_px": 1200,
+    "scene_seed": 24017
+  },
+  "transform": {
+    "pixels_per_mm": 0.08,
+    "origin_px": {
+      "x": 800.0,
+      "y": 600.0
+    },
+    "origin_world_mm": {
+      "x": 0.0,
+      "y": 0.0
+    }
+  },
+  "scale_source": "synthetic_ground_truth",
+  "storeys": [
+    {
+      "id": "L01",
+      "name": "Ground Floor",
+      "elevation_mm": 0.0,
+      "height_mm": 3200.0
+    }
+  ],
+  "grids": [
+    {
+      "id": "GRID-X-01",
+      "label": "1",
+      "start_mm": {
+        "x": -6000.0,
+        "y": -5400.0
+      },
+      "end_mm": {
+        "x": -6000.0,
+        "y": 5400.0
+      }
+    },
+    {
+      "id": "GRID-X-02",
+      "label": "2",
+      "start_mm": {
+        "x": -2000.0,
+        "y": -5400.0
+      },
+      "end_mm": {
+        "x": -2000.0,
+        "y": 5400.0
+      }
+    },
+    {
+      "id": "GRID-X-03",
+      "label": "3",
+      "start_mm": {
+        "x": 2000.0,
+        "y": -5400.0
+      },
+      "end_mm": {
+        "x": 2000.0,
+        "y": 5400.0
+      }
+    },
+    {
+      "id": "GRID-X-04",
+      "label": "4",
+      "start_mm": {
+        "x": 6000.0,
+        "y": -5400.0
+      },
+      "end_mm": {
+        "x": 6000.0,
+        "y": 5400.0
+      }
+    },
+    {
+      "id": "GRID-Y-01",
+      "label": "A",
+      "start_mm": {
+        "x": -6900.0,
+        "y": -4500.0
+      },
+      "end_mm": {
+        "x": 6900.0,
+        "y": -4500.0
+      }
+    },
+    {
+      "id": "GRID-Y-02",
+      "label": "B",
+      "start_mm": {
+        "x": -6900.0,
+        "y": 0.0
+      },
+      "end_mm": {
+        "x": 6900.0,
+        "y": 0.0
+      }
+    },
+    {
+      "id": "GRID-Y-03",
+      "label": "C",
+      "start_mm": {
+        "x": -6900.0,
+        "y": 4500.0
+      },
+      "end_mm": {
+        "x": 6900.0,
+        "y": 4500.0
+      }
+    }
+  ],
+  "entities": [
+    {
+      "id": "COL-001",
+      "type": "column",
+      "subtype": "rectangular",
+      "storey_id": "L01",
+      "center_mm": {
+        "x": -6000.0,
+        "y": -4500.0
+      },
+      "dimensions_mm": {
+        "width": 400.0,
+        "depth": 500.0,
+        "height": 3200.0
+      },
+      "rotation_deg": 0.0,
+      "label": "C1",
+      "class_id": 0,
+      "provenance": {
+        "source": "synthetic_ground_truth",
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": "COL-002",
+      "type": "column",
+      "subtype": "circular",
+      "storey_id": "L01",
+      "center_mm": {
+        "x": -2000.0,
+        "y": -4500.0
+      },
+      "dimensions_mm": {
+        "diameter": 350.0,
+        "height": 3200.0
+      },
+      "rotation_deg": 0.0,
+      "label": "C2",
+      "class_id": 1,
+      "provenance": {
+        "source": "synthetic_ground_truth",
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": "COL-003",
+      "type": "column",
+      "subtype": "rectangular",
+      "storey_id": "L01",
+      "center_mm": {
+        "x": 2000.0,
+        "y": -4500.0
+      },
+      "dimensions_mm": {
+        "width": 400.0,
+        "depth": 700.0,
+        "height": 3200.0
+      },
+      "rotation_deg": 0.0,
+      "label": "C3",
+      "class_id": 0,
+      "provenance": {
+        "source": "synthetic_ground_truth",
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": "COL-004",
+      "type": "column",
+      "subtype": "rectangular",
+      "storey_id": "L01",
+      "center_mm": {
+        "x": 6000.0,
+        "y": -4500.0
+      },
+      "dimensions_mm": {
+        "width": 450.0,
+        "depth": 450.0,
+        "height": 3200.0
+      },
+      "rotation_deg": 0.0,
+      "label": "C4",
+      "class_id": 0,
+      "provenance": {
+        "source": "synthetic_ground_truth",
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": "COL-005",
+      "type": "column",
+      "subtype": "rectangular",
+      "storey_id": "L01",
+      "center_mm": {
+        "x": -6000.0,
+        "y": 0.0
+      },
+      "dimensions_mm": {
+        "width": 300.0,
+        "depth": 700.0,
+        "height": 3200.0
+      },
+      "rotation_deg": 0.0,
+      "label": "C5",
+      "class_id": 0,
+      "provenance": {
+        "source": "synthetic_ground_truth",
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": "COL-006",
+      "type": "column",
+      "subtype": "circular",
+      "storey_id": "L01",
+      "center_mm": {
+        "x": -2000.0,
+        "y": 0.0
+      },
+      "dimensions_mm": {
+        "diameter": 450.0,
+        "height": 3200.0
+      },
+      "rotation_deg": 0.0,
+      "label": "C6",
+      "class_id": 1,
+      "provenance": {
+        "source": "synthetic_ground_truth",
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": "COL-007",
+      "type": "column",
+      "subtype": "rectangular",
+      "storey_id": "L01",
+      "center_mm": {
+        "x": 2000.0,
+        "y": 0.0
+      },
+      "dimensions_mm": {
+        "width": 300.0,
+        "depth": 600.0,
+        "height": 3200.0
+      },
+      "rotation_deg": 30.0,
+      "label": "C7",
+      "class_id": 0,
+      "provenance": {
+        "source": "synthetic_ground_truth",
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": "COL-008",
+      "type": "column",
+      "subtype": "rectangular",
+      "storey_id": "L01",
+      "center_mm": {
+        "x": 6000.0,
+        "y": 0.0
+      },
+      "dimensions_mm": {
+        "width": 450.0,
+        "depth": 450.0,
+        "height": 3200.0
+      },
+      "rotation_deg": 0.0,
+      "label": "C8",
+      "class_id": 0,
+      "provenance": {
+        "source": "synthetic_ground_truth",
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": "COL-009",
+      "type": "column",
+      "subtype": "rectangular",
+      "storey_id": "L01",
+      "center_mm": {
+        "x": -6000.0,
+        "y": 4500.0
+      },
+      "dimensions_mm": {
+        "width": 400.0,
+        "depth": 500.0,
+        "height": 3200.0
+      },
+      "rotation_deg": 0.0,
+      "label": "C9",
+      "class_id": 0,
+      "provenance": {
+        "source": "synthetic_ground_truth",
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": "COL-010",
+      "type": "column",
+      "subtype": "circular",
+      "storey_id": "L01",
+      "center_mm": {
+        "x": -2000.0,
+        "y": 4500.0
+      },
+      "dimensions_mm": {
+        "diameter": 400.0,
+        "height": 3200.0
+      },
+      "rotation_deg": 0.0,
+      "label": "C10",
+      "class_id": 1,
+      "provenance": {
+        "source": "synthetic_ground_truth",
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": "COL-011",
+      "type": "column",
+      "subtype": "rectangular",
+      "storey_id": "L01",
+      "center_mm": {
+        "x": 2000.0,
+        "y": 4500.0
+      },
+      "dimensions_mm": {
+        "width": 300.0,
+        "depth": 500.0,
+        "height": 3200.0
+      },
+      "rotation_deg": 0.0,
+      "label": "C11",
+      "class_id": 0,
+      "provenance": {
+        "source": "synthetic_ground_truth",
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": "COL-012",
+      "type": "column",
+      "subtype": "rectangular",
+      "storey_id": "L01",
+      "center_mm": {
+        "x": 6000.0,
+        "y": 4500.0
+      },
+      "dimensions_mm": {
+        "width": 350.0,
+        "depth": 350.0,
+        "height": 3200.0
+      },
+      "rotation_deg": 0.0,
+      "label": "C12",
+      "class_id": 0,
+      "provenance": {
+        "source": "synthetic_ground_truth",
+        "confidence": 1.0
+      }
+    }
+  ]
+}

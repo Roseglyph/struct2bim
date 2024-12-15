@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "sample_id": "scene_1001_clean",
+  "scene_seed": 1001,
+  "layout_mode": "regular",
+  "augmentation_profile": "clean",
+  "split": "train",
+  "provenance": "synthetic_ground_truth",
+  "homography": [
+    [
+      1.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      1.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "scene": "scenes/scene_1001.json",
+  "dxf": "scenes/scene_1001.dxf"
+}
