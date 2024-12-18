@@ -50,6 +50,7 @@ uv run struct2bim showcase --output outputs\showcase
 uv run struct2bim generate --config configs\curricula\reference.yaml --output outputs\dataset
 uv run struct2bim validate-dataset --dataset outputs\dataset
 uv run struct2bim preview-dataset --dataset outputs\dataset
+uv run python scripts/release_audit.py
 ```
 
 For this local workspace, `scripts/bootstrap.ps1` uses the ignored portable tools under `.tools/` and reproduces the base environment without installing the optional training stack.
