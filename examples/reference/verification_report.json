@@ -2,6 +2,13 @@
   "scene_valid": true,
   "scene_warnings": [],
   "ifc_valid": true,
+  "dxf_valid": true,
+  "dxf_counts": {
+    "columns": 12,
+    "grids": 7,
+    "labels": 12
+  },
+  "dxf_units": "Millimeters",
   "ifc_counts": {
     "IfcProject": 1,
     "IfcSite": 1,
@@ -14,5 +21,12 @@
   "ifc": "model.ifc",
   "hero": "pipeline_overview.png",
   "provenance": "synthetic_ground_truth",
-  "model_predictions_included": false
+  "model_predictions_included": false,
+  "sha256": {
+    "scene": "650218ad40fe881ed0c1595076d3612085021b660ff925bc1b35b1384e731c4c",
+    "dxf": "18a1dc335895642969f02d0427ee27b0963a3c2227ec59caab79240da7d5604a",
+    "ifc": "554d5256afbf7ffbe914c5b4cfbaff610377acafafd8a2a8534b29ecf8d4d09a",
+    "hero": "01431e461f9092998a02c5b9cb2db467ae658200d314bfb034aa06a12291a7ab",
+    "gallery": "8c24c43462456b4ff35bb1a65fe2c8f172356ab6c30b5b04ef4aa793183f0d56"
+  }
 }
