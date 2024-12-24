@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from struct2bim.training.config import TrainingConfig
+from struct2bim.validation import validate_dataset
 
 
 class TrainingDependencyError(RuntimeError):
@@ -32,6 +36,10 @@ def run_training(config_path: Path, project_root: Path) -> Path:
 
     if not dataset.is_file():
         raise FileNotFoundError(f"Dataset configuration was not found: {dataset}")
+    dataset_root = dataset.parent.parent
+    validation = validate_dataset(dataset_root)
+    if not validation.valid:
+        raise ValueError(f"Dataset failed validation before training: {validation.errors}")
 
     YOLO = _require_ultralytics()
     model_source = config.resume_checkpoint or Path(config.model)
@@ -56,4 +64,20 @@ def run_training(config_path: Path, project_root: Path) -> Path:
         save_period=config.save_period,
         resume=config.resume_checkpoint is not None,
     )
-    return project / config.name
+    run_directory = project / config.name
+    run_directory.mkdir(parents=True, exist_ok=True)
+    manifest_path = dataset_root / "manifest.json"
+    run_manifest = {
+        "schema_version": "1.0",
+        "created_utc": datetime.now(timezone.utc).isoformat(),
+        "task": config.task,
+        "model_source": str(model_source),
+        "dataset_yaml": str(dataset),
+        "dataset_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+        "training_config_sha256": hashlib.sha256(config_path.read_bytes()).hexdigest(),
+        "resume": config.resume_checkpoint is not None,
+    }
+    (run_directory / "struct2bim_run_manifest.json").write_text(
+        json.dumps(run_manifest, indent=2), encoding="utf-8", newline="\n"
+    )
+    return run_directory

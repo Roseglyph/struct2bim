@@ -32,3 +32,24 @@ def test_training_without_dataset_fails_before_optional_import(tmp_path: Path) -
 def test_training_dependency_error_message() -> None:
     assert "not installed" in str(TrainingDependencyError("not installed"))
 
+
+def test_training_rejects_unvalidated_dataset_before_optional_import(tmp_path: Path) -> None:
+    dataset_yaml = tmp_path / "outputs" / "dataset" / "segment" / "dataset.yaml"
+    dataset_yaml.parent.mkdir(parents=True)
+    dataset_yaml.write_text("names: {0: column_rectangular}\n", encoding="utf-8")
+    config = tmp_path / "training.yaml"
+    config.write_text(
+        "\n".join(
+            (
+                "task: segment",
+                "model: yolo11n-seg.pt",
+                "dataset: outputs/dataset/segment/dataset.yaml",
+                "project: runs/segment",
+                "name: test",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Dataset failed validation"):
+        run_training(config, tmp_path)
