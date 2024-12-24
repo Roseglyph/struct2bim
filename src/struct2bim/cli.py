@@ -31,7 +31,7 @@ def train(
 
     try:
         run_directory = run_training(config, Path.cwd())
-    except TrainingDependencyError as exc:
+    except (TrainingDependencyError, FileNotFoundError, ValueError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=2) from exc
     typer.echo(f"Training run directory: {run_directory}")
@@ -202,16 +202,20 @@ def infer(
     storey_height_mm: float = typer.Option(3200.0, "--storey-height-mm", min=1.0),
 ) -> None:
     """Run supplied weights on image/PDF/DXF; add IFC when scale is provided."""
-    from struct2bim.training import run_inference
+    from struct2bim.training import TrainingDependencyError, run_inference
 
-    report = run_inference(
-        source,
-        weights,
-        output,
-        confidence=confidence,
-        millimetres_per_pixel=millimetres_per_pixel,
-        storey_height_mm=storey_height_mm,
-    )
+    try:
+        report = run_inference(
+            source,
+            weights,
+            output,
+            confidence=confidence,
+            millimetres_per_pixel=millimetres_per_pixel,
+            storey_height_mm=storey_height_mm,
+        )
+    except (TrainingDependencyError, FileNotFoundError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2) from exc
     typer.echo(f"Inference report: {report.resolve()}")
 
 
@@ -224,9 +228,13 @@ def evaluate(
     split: str = typer.Option("test", "--split"),
 ) -> None:
     """Evaluate supplied weights and save checkpoint-linked actual metrics."""
-    from struct2bim.training import run_evaluation
+    from struct2bim.training import TrainingDependencyError, run_evaluation
 
-    report = run_evaluation(weights, dataset, data, output, split=split)
+    try:
+        report = run_evaluation(weights, dataset, data, output, split=split)
+    except (TrainingDependencyError, FileNotFoundError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2) from exc
     typer.echo(f"Evaluation report: {report.resolve()}")
 
 
