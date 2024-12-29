@@ -92,7 +92,7 @@ struct2bim infer --source drawing.dxf --weights path\to\best.pt --mm-per-pixel 2
 
 Without `--mm-per-pixel`, inference deliberately stays in pixel space. IFC generation is enabled only after a real-world scale is supplied.
 
-See [training and inference](docs/training.md), [architecture](docs/architecture.md), [data contract](docs/data-contract.md), and [limitations](docs/limitations.md).
+See [training and inference](docs/training.md), [architecture](docs/architecture.md), [data contract](docs/data-contract.md), [verification](docs/verification.md), and [limitations](docs/limitations.md).
 
 ## Scope and engineering position
 
