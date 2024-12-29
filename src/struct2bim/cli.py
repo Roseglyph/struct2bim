@@ -23,6 +23,17 @@ def version() -> None:
 
 
 @app.command()
+def doctor() -> None:
+    """Report base-runtime, Blender, examples, and optional-training readiness."""
+    from struct2bim.diagnostics import diagnose
+
+    report = diagnose(_project_root())
+    typer.echo(report.model_dump_json(indent=2))
+    if not report.ready:
+        raise typer.Exit(code=1)
+
+
+@app.command()
 def train(
     config: Path = typer.Option(..., "--config", exists=True, dir_okay=False),
 ) -> None:

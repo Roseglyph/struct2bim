@@ -46,6 +46,7 @@ Requirements: Windows or Linux, Python 3.11, [uv](https://docs.astral.sh/uv/), a
 ```powershell
 uv sync --extra dev
 $env:STRUCT2BIM_BLENDER = "C:\path\to\blender.exe"
+uv run struct2bim doctor
 uv run struct2bim showcase --output outputs\showcase
 uv run struct2bim generate --config configs\curricula\reference.yaml --output outputs\dataset
 uv run struct2bim validate-dataset --dataset outputs\dataset
