@@ -34,6 +34,17 @@ def doctor() -> None:
 
 
 @app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8000, "--port", min=1, max=65535),
+) -> None:
+    """Run the local dataset-generator interface."""
+    from struct2bim.web import run_server
+
+    run_server(_project_root(), host=host, port=port)
+
+
+@app.command()
 def train(
     config: Path = typer.Option(..., "--config", exists=True, dir_okay=False),
 ) -> None:
