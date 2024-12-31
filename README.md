@@ -54,7 +54,11 @@ uv run struct2bim preview-dataset --dataset outputs\dataset
 uv run python scripts/release_audit.py
 ```
 
-For this local workspace, `scripts/bootstrap.ps1` uses the ignored portable tools under `.tools/` and reproduces the base environment without installing the optional training stack.
+For this local workspace, the following command uses the ignored portable tools under `.tools/` and reproduces the base environment without installing the optional training stack. The process-scoped execution-policy flag avoids changing the user's system policy.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1
+```
 
 ## Outputs
 
