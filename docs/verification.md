@@ -6,7 +6,7 @@ This record describes the checks performed on the committed portfolio state. It 
 
 | Gate | Result |
 |---|---:|
-| pytest | 59 tests passed |
+| pytest | 61 tests passed |
 | Ruff | passed |
 | strict mypy | passed |
 | dependency lock | resolved successfully |
@@ -50,6 +50,7 @@ The IFC showcase image is rendered from tessellated IFC geometry and extracted I
 The following committed assets were opened at original resolution and checked for legibility, alignment, clipping, and truthful captions:
 
 - `docs/assets/pipeline_overview.png`;
+- `docs/assets/generator-interface.png`;
 - `docs/assets/curriculum_variations.png`;
 - `docs/assets/dataset_alignment_preview.png`;
 - `docs/assets/ifc_isometric.png`.

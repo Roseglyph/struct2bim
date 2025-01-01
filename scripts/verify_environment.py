@@ -12,6 +12,7 @@ from pathlib import Path
 IMPORTS = {
     "albumentations": "albumentations",
     "ezdxf": "ezdxf",
+    "FastAPI": "fastapi",
     "ifcopenshell": "ifcopenshell",
     "networkx": "networkx",
     "numpy": "numpy",
@@ -23,6 +24,7 @@ IMPORTS = {
     "rich": "rich",
     "shapely": "shapely",
     "typer": "typer",
+    "Uvicorn": "uvicorn",
 }
 
 

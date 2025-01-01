@@ -1,4 +1,4 @@
-"""Fail-closed checks for a clean, truthful portfolio repository."""
+"""Check the repository's public artifacts and release constraints."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from struct2bim.exporters import validate_dxf_file, validate_ifc_file
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = (
     "README.md",
+    "docs/assets/generator-interface.png",
     "docs/assets/pipeline_overview.png",
     "docs/assets/dataset_alignment_preview.png",
     "examples/reference/model.ifc",
@@ -59,7 +60,11 @@ def main() -> int:
                 if pattern.search(contents):
                     failures.append(f"forbidden private/secret pattern in {relative}")
                     break
-    for asset in ("pipeline_overview.png", "dataset_alignment_preview.png"):
+    for asset in (
+        "generator-interface.png",
+        "pipeline_overview.png",
+        "dataset_alignment_preview.png",
+    ):
         with Image.open(ROOT / "docs" / "assets" / asset) as image:
             if image.width < 1200 or image.height < 500:
                 failures.append(f"portfolio image is unexpectedly small: {asset}")
