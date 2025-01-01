@@ -1,51 +1,86 @@
-# Struct2BIM Synthetic Lab
+# Struct2BIM
 
-![Struct2BIM pipeline](docs/assets/pipeline_overview.png)
+Struct2BIM explores a practical route from structural floor plans to BIM-ready geometry. The project generates configurable floor-plan drawings in Blender, derives exact annotations from their source geometry, and exports the same scene as IFC4 and DXF.
 
-Struct2BIM is a reproducible reference pipeline for turning structural floor-plan documents into detector-ready data and calibrated BIM/IFC geometry. It generates structural drawings in Blender, derives exact labels from the same canonical scene, validates every artifact, and exports IFC4 and DXF without requiring AutoCAD.
+The current implementation focuses on structural columns and grid systems. It covers the complete data path around a detector: curriculum generation, document variations, YOLO segmentation and oriented-box labels, grouped dataset splits, input adapters, scale calibration, and validated exchange models.
 
-The repository is also prepared for local YOLO segmentation/OBB training, evaluation, and supplied-checkpoint inference. **No trained weights or detector metrics are included or claimed.** Public visuals marked _Synthetic Ground Truth_ show generated truth, not model predictions.
+![Struct2BIM generator interface](docs/assets/generator-interface.png)
 
-## What is implemented
+## Features
 
-| Capability | Status |
-|---|---|
-| Blender structural drawing generation | Implemented |
-| Isolated, regular, and irregular layout curriculum | Implemented |
-| Clean, scan, and perspective document variants | Implemented in a separate 2D stage |
-| YOLO segmentation and oriented-box labels | Implemented |
-| Semantic/instance masks, metadata, hashes, grouped splits | Implemented |
-| Canonical metric structural JSON | Implemented |
-| IFC4 and DXF export with reopen validation | Implemented |
-| Image, multi-page PDF, and basic DXF inference adapters | Implemented; weights supplied by user |
-| Local training, resume, evaluation, and inference commands | Prepared; optional ML environment not installed by default |
-| Direct DWG input | Deferred; export DWG to DXF or PDF first |
+- Browser-based generator with controls for layouts, variants, drawing scale, grid size, spacing, storey height, and irregularity
+- Blender drawing generation from one metric scene definition
+- Isolated, regular-grid, and irregular-grid curriculum stages
+- Clean, scanned-document, and perspective variants
+- Exact YOLO segmentation and oriented-box annotations
+- Semantic masks, instance masks, scene metadata, and file hashes
+- Scene-grouped train, validation, and test splits to prevent variant leakage
+- IFC4 and DXF export with reopen validation
+- Image, multi-page PDF, and basic DXF input adapters
+- Local commands for YOLO training, evaluation, and checkpoint-based inference
 
-![Dataset alignment preview](docs/assets/dataset_alignment_preview.png)
-
-## Pipeline
+## How it works
 
 ```text
+Generator parameters
+        |
+        v
 Canonical metric scene
-   |-- Blender clean drawing
-   |-- exact polygons / OBB / masks
-   |-- document augmentation + transformed labels
-   |-- grouped train / validation / test dataset
-   `-- normalized geometry --> DXF + IFC4 --> reopen validation
+   |          |                |
+   |          |                +--> IFC4 and DXF
+   |          |
+   |          +--> polygons, OBB labels, and masks
+   |
+   +--> Blender drawing --> document variants
+                              |
+                              v
+                   grouped YOLO dataset
 
-Image / PDF / DXF --> supplied YOLO checkpoint --> pixel predictions
-                                            `--> calibrated scene + IFC (when scale is known)
+Image, PDF, or DXF --> detector checkpoint --> calibrated geometry --> IFC4
 ```
 
-One coordinate transform is authoritative for the clean render and its labels. Perspective augmentation applies the same homography to pixels and annotations. Variants from the same structural scene always stay in one dataset split.
+The clean drawing and its annotations use the same coordinate transform. Perspective variants apply one homography to both pixels and labels. Every variant from an underlying structural scene remains in the same dataset split.
 
-## Quick start
+![Drawing to dataset and BIM pipeline](docs/assets/pipeline_overview.png)
 
-Requirements: Windows or Linux, Python 3.11, [uv](https://docs.astral.sh/uv/), and Blender 4.2 or a compatible Blender executable.
+## Generator interface
+
+The local interface exposes the parameters that define a run and provides two workflows:
+
+- **Build one preview** renders a selected scene and prepares its IFC and DXF outputs.
+- **Generate dataset** runs the complete curriculum, writes the dataset, and validates the result.
+
+Start it with:
 
 ```powershell
 uv sync --extra dev
 $env:STRUCT2BIM_BLENDER = "C:\path\to\blender.exe"
+uv run struct2bim serve
+```
+
+Then open [http://127.0.0.1:8765](http://127.0.0.1:8765).
+
+The repository also includes a Windows bootstrap script for the ignored portable development tools used in this workspace:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1
+```
+
+## Reference run
+
+The checked reference configuration contains 12 underlying scenes and 36 rendered variants. Its grouped split contains 30 training samples, 3 validation samples, and 3 test samples. A total of 72 YOLO annotation files are checked during dataset validation.
+
+![Dataset image, labels, and masks](docs/assets/dataset_alignment_preview.png)
+
+The same metric scene is exported to IFC4 and DXF. Both files are reopened with their respective libraries after export, so a successful run verifies more than file creation.
+
+![IFC model generated from the reference scene](docs/assets/ifc_isometric.png)
+
+Small verified artifacts are available in [`examples/reference`](examples/reference). Generated datasets, model weights, training runs, Blender installations, and virtual environments stay outside version control.
+
+## Command line workflow
+
+```powershell
 uv run struct2bim doctor
 uv run struct2bim showcase --output outputs\showcase
 uv run struct2bim generate --config configs\curricula\reference.yaml --output outputs\dataset
@@ -54,30 +89,19 @@ uv run struct2bim preview-dataset --dataset outputs\dataset
 uv run python scripts/release_audit.py
 ```
 
-For this local workspace, the following command uses the ignored portable tools under `.tools/` and reproduces the base environment without installing the optional training stack. The process-scoped execution-policy flag avoids changing the user's system policy.
+A dataset build writes:
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1
-```
+- images and task-specific YOLO directory trees
+- segmentation polygons and four-corner oriented boxes
+- semantic and instance masks
+- canonical structural scene JSON and DXF files
+- augmentation metadata and homographies
+- deterministic manifests and SHA-256 hashes
+- a validation report produced from the completed checks
 
-## Outputs
+## Model training and inference
 
-A dataset build produces:
-
-- shared images and task-specific YOLO directory trees;
-- segmentation polygons and four-corner OBB labels;
-- semantic and instance PNG masks;
-- canonical scene JSON and DXF per underlying scene;
-- per-sample augmentation metadata and homography;
-- SHA-256 hashes and a deterministic manifest;
-- non-empty, scene-grouped train/validation/test splits;
-- a validation report that is written from actual checks.
-
-Small verified examples are in [`examples/reference`](examples/reference). Full datasets, model weights, runs, Blender installations, and virtual environments are intentionally ignored.
-
-## Optional local model workflow
-
-Training packages are isolated from the base environment:
+Training is intentionally separated from the base development environment. Install the optional packages on the machine that will perform the training:
 
 ```powershell
 .\.tools\uv\uv.exe venv .venv-training --python 3.11
@@ -86,7 +110,7 @@ Training packages are isolated from the base environment:
 .\.venv-training\Scripts\struct2bim.exe train --config configs\training\columns-seg.yaml
 ```
 
-Evaluation and inference require a real checkpoint:
+Evaluation and inference use a supplied checkpoint:
 
 ```powershell
 struct2bim evaluate --weights path\to\best.pt --dataset outputs\dataset --data outputs\dataset\segment\dataset.yaml
@@ -94,16 +118,42 @@ struct2bim infer --source drawing.pdf --weights path\to\best.pt
 struct2bim infer --source drawing.dxf --weights path\to\best.pt --mm-per-pixel 2.5
 ```
 
-Without `--mm-per-pixel`, inference deliberately stays in pixel space. IFC generation is enabled only after a real-world scale is supplied.
+Inference remains in pixel space when no real-world scale is known. IFC generation is enabled after scale calibration. The repository does not include trained weights or publish detector metrics.
 
-See [training and inference](docs/training.md), [architecture](docs/architecture.md), [data contract](docs/data-contract.md), [verification](docs/verification.md), and [limitations](docs/limitations.md).
+## Project structure
 
-## Scope and engineering position
+```text
+configs/                  curriculum and training configurations
+docs/                     architecture, data contract, and verification notes
+examples/reference/       small reopened IFC and DXF examples
+scripts/                  setup, verification, and release checks
+src/struct2bim/
+  adapters/               image, PDF, and DXF inputs
+  blender/                drawing and scene generation
+  exporters/              IFC4 and DXF writers
+  training/               dataset, training, and inference commands
+  web/                    local generator interface
+tests/                    unit and integration tests
+```
 
-This is a portfolio-quality vertical slice, not a structural-design authority or production drawing-certification system. The included ruleset uses structural vocabulary and plausible demonstrative ranges; it does not certify compliance with any current building code. Human engineering review remains required before using generated BIM in design or construction.
+## Verification
 
-The initial detector ontology focuses on rectangular and circular columns. Grid axes, bubbles, identifiers, and dimensions are generated as context and retained in canonical data so later task heads can extend the same architecture.
+```powershell
+uv run pytest
+uv run ruff check .
+uv run mypy src scripts
+uv run struct2bim doctor
+uv run python scripts/release_audit.py
+```
 
-## License
+The committed IFC is reopened with IfcOpenShell, and the DXF is reopened with ezdxf. Dataset validation checks coordinates, expected artifacts, hashes, masks, annotations, and split grouping. More detail is available in [verification](docs/verification.md), [architecture](docs/architecture.md), and the [data contract](docs/data-contract.md).
 
-Project code is MIT licensed. Optional or direct dependencies retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), especially the Ultralytics and PyMuPDF terms.
+## Current limitations
+
+- Detector weights must be trained or supplied by the user.
+- A real-world scale is required before inferred pixel geometry can become BIM geometry.
+- Direct DWG processing is not included; DWG drawings should be exported to DXF or PDF first.
+- The included rules and dimensions are demonstrative and do not certify building-code compliance.
+- Generated BIM requires engineering review before design or construction use.
+
+See [training and inference](docs/training.md) and [known limitations](docs/limitations.md) for the detailed workflow and boundaries.
