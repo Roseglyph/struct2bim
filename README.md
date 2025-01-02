@@ -21,23 +21,7 @@ The current implementation focuses on structural columns and grid systems. It co
 
 ## How it works
 
-```text
-Generator parameters
-        |
-        v
-Canonical metric scene
-   |          |                |
-   |          |                +--> IFC4 and DXF
-   |          |
-   |          +--> polygons, OBB labels, and masks
-   |
-   +--> Blender drawing --> document variants
-                              |
-                              v
-                   grouped YOLO dataset
-
-Image, PDF, or DXF --> detector checkpoint --> calibrated geometry --> IFC4
-```
+![Struct2BIM workflow from parameters to IFC4 and DXF](docs/assets/workflow_diagram.png)
 
 The clean drawing and its annotations use the same coordinate transform. Perspective variants apply one homography to both pixels and labels. Every variant from an underlying structural scene remains in the same dataset split.
 
@@ -147,13 +131,3 @@ uv run python scripts/release_audit.py
 ```
 
 The committed IFC is reopened with IfcOpenShell, and the DXF is reopened with ezdxf. Dataset validation checks coordinates, expected artifacts, hashes, masks, annotations, and split grouping. More detail is available in [verification](docs/verification.md), [architecture](docs/architecture.md), and the [data contract](docs/data-contract.md).
-
-## Current limitations
-
-- Detector weights must be trained or supplied by the user.
-- A real-world scale is required before inferred pixel geometry can become BIM geometry.
-- Direct DWG processing is not included; DWG drawings should be exported to DXF or PDF first.
-- The included rules and dimensions are demonstrative and do not certify building-code compliance.
-- Generated BIM requires engineering review before design or construction use.
-
-See [training and inference](docs/training.md) and [known limitations](docs/limitations.md) for the detailed workflow and boundaries.
