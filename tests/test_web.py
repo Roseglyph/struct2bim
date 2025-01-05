@@ -14,7 +14,7 @@ def test_web_interface_and_defaults_are_available() -> None:
     defaults = client.get("/api/defaults")
 
     assert page.status_code == 200
-    assert "Dataset parameters" in page.text
+    assert "Dataset definition" in page.text
     assert defaults.status_code == 200
     assert defaults.json()["scene_count"] == 12
 

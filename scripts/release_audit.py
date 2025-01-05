@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = (
     "README.md",
     "docs/assets/generator-interface.png",
+    "docs/assets/workflow_diagram.png",
+    "docs/assets/workspace_drawing.png",
     "docs/assets/pipeline_overview.png",
     "docs/assets/dataset_alignment_preview.png",
     "examples/reference/model.ifc",
@@ -62,6 +64,8 @@ def main() -> int:
                     break
     for asset in (
         "generator-interface.png",
+        "workflow_diagram.png",
+        "workspace_drawing.png",
         "pipeline_overview.png",
         "dataset_alignment_preview.png",
     ):

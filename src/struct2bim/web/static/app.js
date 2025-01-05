@@ -2,8 +2,16 @@ const form = document.querySelector("#generator-form");
 const message = document.querySelector("#message");
 const state = document.querySelector("#result-state");
 const image = document.querySelector("#preview-image");
+const ifcPreview = document.querySelector("#ifc-preview");
 const metrics = document.querySelector("#result-metrics");
-const buttons = [...form.querySelectorAll("button[type=submit]")];
+const buttons = [...document.querySelectorAll("button[type=submit]")];
+const viewButtons = [...document.querySelectorAll("[data-view]")];
+const viewTitle = document.querySelector("#view-title");
+
+let previewSources = {
+  drawing: "/portfolio/workspace_drawing.png?v=2",
+  labels: "/portfolio/dataset_alignment_preview.png",
+};
 
 function selected(name) {
   return [...form.querySelectorAll(`input[name=${name}]:checked`)].map((item) => item.value);
@@ -36,20 +44,33 @@ function payload() {
 
 function setBusy(busy, label = "Working") {
   buttons.forEach((button) => button.disabled = busy);
-  state.textContent = busy ? label : "Ready";
-  state.style.background = busy ? "#fff4e6" : "#edf7f4";
-  state.style.color = busy ? "#9b5d13" : "#26725a";
+  state.lastChild.textContent = busy ? label : "Ready";
+  state.style.color = busy ? "#c76b25" : "#43856e";
 }
 
 function showMetrics(items) {
   metrics.innerHTML = items.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("");
 }
 
+function selectView(name) {
+  viewButtons.forEach((button) => button.classList.toggle("active", button.dataset.view === name));
+  image.src = previewSources[name];
+  viewTitle.textContent = name === "drawing" ? "Generated drawing" : "Annotation alignment";
+}
+
+viewButtons.forEach((button) => button.addEventListener("click", () => selectView(button.dataset.view)));
+
+for (const [field, readout] of [["project_name", "project-readout"], ["output_name", "output-readout"], ["seed", "seed-readout"]]) {
+  form.elements[field].addEventListener("input", (event) => {
+    document.querySelector(`#${readout}`).textContent = event.target.value;
+  });
+}
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const action = event.submitter.dataset.action;
   message.classList.remove("error");
-  message.textContent = action === "preview" ? "Rendering a preview in Blender and checking IFC and DXF." : "Building and validating the configured dataset.";
+  message.textContent = action === "preview" ? "Rendering in Blender and checking IFC and DXF." : "Building and validating the configured dataset.";
   setBusy(true, action === "preview" ? "Rendering" : "Generating");
   try {
     const response = await fetch(`/api/${action}`, {
@@ -60,17 +81,20 @@ form.addEventListener("submit", async (event) => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.detail || "The operation failed");
     if (action === "preview") {
-      image.src = `${result.pipeline}?t=${Date.now()}`;
+      const stamp = Date.now();
+      previewSources = { drawing: `${result.drawing}?t=${stamp}`, labels: `${result.labels}?t=${stamp}` };
+      ifcPreview.src = `${result.ifc_render}?t=${stamp}`;
+      selectView("drawing");
       showMetrics([
         ["Layout", result.layout],
         ["Columns", result.entities],
-        ["Exchange checks", result.ifc_valid && result.dxf_valid ? "Passed" : "Failed"],
+        ["IFC / DXF", result.ifc_valid && result.dxf_valid ? "Validated" : "Check failed"],
       ]);
     } else {
       showMetrics([
         ["Samples", result.sample_count],
         ["Train / val / test", `${result.split_counts.train} / ${result.split_counts.validation} / ${result.split_counts.test}`],
-        ["Validation", "Passed"],
+        ["Dataset", "Validated"],
       ]);
     }
     message.textContent = result.message;
@@ -90,6 +114,9 @@ document.querySelector("#reset-button").addEventListener("click", async () => {
     if (Array.isArray(value)) fields.forEach((field) => field.checked = value.includes(field.value));
     else fields[0].value = value;
   }
+  document.querySelector("#project-readout").textContent = defaults.project_name;
+  document.querySelector("#output-readout").textContent = defaults.output_name;
+  document.querySelector("#seed-readout").textContent = defaults.seed;
   message.classList.remove("error");
   message.textContent = "Default reference parameters restored.";
 });

@@ -51,11 +51,13 @@ The following committed assets were opened at original resolution and checked fo
 
 - `docs/assets/pipeline_overview.png`;
 - `docs/assets/generator-interface.png`;
+- `docs/assets/workflow_diagram.png`;
+- `docs/assets/workspace_drawing.png`;
 - `docs/assets/curriculum_variations.png`;
 - `docs/assets/dataset_alignment_preview.png`;
 - `docs/assets/ifc_isometric.png`.
 
-Every annotation-facing public image identifies its content as synthetic ground truth. No panel is presented as a detector prediction.
+Public figures distinguish generated reference geometry from detector predictions. No panel is presented as a trained-model result.
 
 ## Intentionally unverified
 
