@@ -129,6 +129,7 @@ def export_ifc(scene: Any, destination: str | Path) -> Path:
     path = Path(destination)
     path.parent.mkdir(parents=True, exist_ok=True)
     model = ifcopenshell.file(schema="IFC4")
+    model.header.file_name.time_stamp = "1970-01-01T00:00:00"  # type: ignore[union-attr]
     origin = _point(model, (0, 0, 0))
     context = model.create_entity(
         "IfcGeometricRepresentationContext", ContextIdentifier="Model",
