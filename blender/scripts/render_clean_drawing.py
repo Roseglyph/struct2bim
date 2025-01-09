@@ -43,6 +43,36 @@ def cube(name: str, center, dimensions, mat) -> None:
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 
 
+def segment(name, start, end, width, height, mat) -> None:
+    dx, dy = end[0] - start[0], end[1] - start[1]
+    length = max(math.hypot(dx, dy), 0.001)
+    cube(name, ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2, height / 2), (length, width, height), mat)
+    bpy.context.object.rotation_euler[2] = math.atan2(dy, dx)
+
+
+def rectangle_outline(name, center, width, depth, rotation, line_width, mat, z=0.018) -> None:
+    cosine, sine = math.cos(rotation), math.sin(rotation)
+    corners = []
+    for local_x, local_y in ((-width / 2, -depth / 2), (width / 2, -depth / 2), (width / 2, depth / 2), (-width / 2, depth / 2)):
+        corners.append((center[0] + local_x * cosine - local_y * sine, center[1] + local_x * sine + local_y * cosine))
+    for index, start in enumerate(corners):
+        segment(f"{name} {index + 1}", start, corners[(index + 1) % 4], line_width, z, mat)
+
+
+def hatch_rectangle(name, center, width, depth, rotation, spacing, line_width, mat) -> None:
+    count = min(6, max(1, int((width + depth) / spacing)))
+    cosine, sine = math.cos(rotation), math.sin(rotation)
+    for index in range(count):
+        offset = -depth / 2 + (index + 0.5) * depth / count
+        half = min(width / 2, (depth / 2 - abs(offset)) + width * 0.18)
+        first = (-half, offset - half * 0.35)
+        second = (half, offset + half * 0.35)
+        points = []
+        for local_x, local_y in (first, second):
+            points.append((center[0] + local_x * cosine - local_y * sine, center[1] + local_x * sine + local_y * cosine))
+        segment(f"{name} {index + 1}", points[0], points[1], line_width, 0.014, mat)
+
+
 def text_label(name, value, location, size, mat, rotation=0.0) -> None:
     curve = bpy.data.curves.new(name, type="FONT")
     curve.body = str(value)
@@ -91,7 +121,10 @@ def main() -> None:
     span_x, span_y = max(max_x - min_x, 1.0), max(max_y - min_y, 1.0)
     center_x, center_y = (min_x + max_x) / 2, (min_y + max_y) / 2
     ink = material("Drawing Ink", (0.045, 0.070, 0.090, 1.0))
-    grid = material("Reference Grid", (0.38, 0.45, 0.50, 1.0))
+    grid = material("Reference Grid", (0.82, 0.47, 0.52, 1.0))
+    footing = material("Footing Linework", (0.12, 0.72, 0.28, 1.0))
+    beam = material("Tie Beam Linework", (0.06, 0.68, 0.72, 1.0))
+    tag = material("Drawing Tags", (0.72, 0.60, 0.02, 1.0))
     paper = material("Paper", (0.985, 0.99, 1.0, 1.0))
     white = material("Label White", (1.0, 1.0, 1.0, 1.0))
     pad = max(span_x, span_y) * 0.18
@@ -105,15 +138,62 @@ def main() -> None:
         cube(f"Grid X {index + 1}", (x, center_y, 0.005), (line_width, span_y + pad, 0.006), grid)
     for index, y in enumerate(ys):
         cube(f"Grid Y {index + 1}", (center_x, y, 0.005), (span_x + pad, line_width, 0.006), grid)
+    context = scene.get("drawing_context", {})
+    complexity = float(context.get("complexity", 0.75))
+    outline_probability = float(context.get("outline_probability", 0.32))
+    hatch_probability = float(context.get("hatch_probability", 0.34))
+    overlap_probability = float(context.get("footing_overlap_probability", 0.28))
+    diagonal_probability = float(context.get("diagonal_beam_probability", 0.24))
+
+    # Double-line grade and tie beams connect the structural grid and often
+    # cross column outlines, as they do in real foundation drawings.
+    by_y = {}
+    by_x = {}
+    for value in values:
+        by_y.setdefault(round(value[1], 4), []).append(value)
+        by_x.setdefault(round(value[0], 4), []).append(value)
+    connections = []
+    for groups, coordinate_index in ((by_y, 0), (by_x, 1)):
+        for group in groups.values():
+            ordered = sorted(group, key=lambda item: item[coordinate_index])
+            connections.extend(zip(ordered, ordered[1:]))
+    if complexity > 0.55:
+        ordered = sorted(values, key=lambda item: (item[1], item[0]))
+        neighbour_limit = max(span_x / max(len(xs) - 1, 1), span_y / max(len(ys) - 1, 1)) * 1.8
+        for first, second in zip(ordered, ordered[1:]):
+            if math.hypot(second[0] - first[0], second[1] - first[1]) < neighbour_limit and random.random() < diagonal_probability:
+                connections.append((first, second))
+    for index, (first, second) in enumerate(connections):
+        start, end = (first[0], first[1]), (second[0], second[1])
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        length = max(math.hypot(dx, dy), 0.001)
+        offset = max(line_width * 2.2, 0.035)
+        normal = (-dy / length * offset, dx / length * offset)
+        segment(f"Beam {index + 1} A", (start[0] + normal[0], start[1] + normal[1]), (end[0] + normal[0], end[1] + normal[1]), line_width, 0.012, beam)
+        segment(f"Beam {index + 1} B", (start[0] - normal[0], start[1] - normal[1]), (end[0] - normal[0], end[1] - normal[1]), line_width, 0.012, beam)
+
     for index, (x, y, width, depth, rotation, subtype) in enumerate(values):
+        footing_width = max(width, depth) * random.uniform(4.2, 7.8)
+        footing_depth = max(width, depth) * random.uniform(3.8, 7.0)
+        if random.random() < overlap_probability:
+            footing_width *= random.uniform(1.3, 1.8)
+        rectangle_outline(f"Footing {index + 1} Outer", (x, y), footing_width, footing_depth, 0.0, line_width * 1.25, footing)
+        rectangle_outline(f"Footing {index + 1} Inner", (x, y), footing_width * 0.72, footing_depth * 0.72, 0.0, line_width, footing)
+        if random.random() < hatch_probability:
+            hatch_rectangle(f"Footing Hatch {index + 1}", (x, y), footing_width * 0.7, footing_depth * 0.7, 0.0, max(footing_width, footing_depth) * 0.16, line_width * 0.7, footing)
         if subtype == "circular":
             bpy.ops.mesh.primitive_cylinder_add(vertices=64, radius=width / 2, depth=0.035, location=(x, y, 0.02))
             bpy.context.object.name = f"Column {index + 1}"
             bpy.context.object.data.materials.append(ink)
+        elif random.random() < outline_probability:
+            rectangle_outline(f"Column {index + 1}", (x, y), width, depth, rotation, line_width * 1.8, ink, z=0.035)
         else:
             cube(f"Column {index + 1}", (x, y, 0.02), (width, depth, 0.035), ink)
             bpy.context.object.rotation_euler[2] = rotation
+        if random.random() < hatch_probability:
+            hatch_rectangle(f"Column Hatch {index + 1}", (x, y), width * 0.9, depth * 0.9, rotation, max(width, depth) * 0.22, line_width, ink)
         text_label(f"Column Label {index + 1}", f"C{index + 1}", (x + 0.34, y + 0.26, 0.05), 0.22, ink)
+        text_label(f"Footing Label {index + 1}", f"F{1 + index % 8}", (x - 0.34, y - 0.30, 0.05), 0.19, tag)
 
     # Drafting context is generated separately from document/photo augmentation.
     bubble_radius = max(span_x, span_y) * 0.018

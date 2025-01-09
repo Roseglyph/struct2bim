@@ -17,9 +17,12 @@ from pydantic import BaseModel, Field, field_validator
 from struct2bim.application import DatasetBuildConfig, build_dataset
 from struct2bim.augmentation import AugmentationProfile
 from struct2bim.curriculum import ReferenceSceneConfig, generate_reference_scene
-from struct2bim.exporters import export_dxf, export_ifc, validate_dxf_file, validate_ifc_file
-from struct2bim.rendering import BlenderRunner, BlenderToolConfig
-from struct2bim.showcase import build_showcase
+from struct2bim.rendering import (
+    BlenderRunner,
+    BlenderToolConfig,
+    render_annotation_preview,
+    render_geometry_preview,
+)
 from struct2bim.validation import validate_dataset
 
 
@@ -40,13 +43,19 @@ class GeneratorParameters(BaseModel):
     )
     canvas_width_px: int = Field(default=2048, ge=512, le=8192)
     canvas_height_px: int = Field(default=2048, ge=512, le=8192)
-    pixels_per_mm: float = Field(default=0.12, gt=0, le=2.0)
-    columns_x: int = Field(default=4, ge=2, le=12)
-    columns_y: int = Field(default=3, ge=2, le=12)
-    spacing_x_mm: float = Field(default=4000, ge=500, le=20000)
-    spacing_y_mm: float = Field(default=4500, ge=500, le=20000)
+    pixels_per_mm: float = Field(default=0.075, gt=0, le=2.0)
+    columns_x: int = Field(default=5, ge=2, le=12)
+    columns_y: int = Field(default=6, ge=2, le=12)
+    spacing_x_mm: float = Field(default=3600, ge=500, le=20000)
+    spacing_y_mm: float = Field(default=3900, ge=500, le=20000)
     storey_height_mm: float = Field(default=3200, ge=1000, le=10000)
     irregularity_ratio: float = Field(default=0.12, ge=0, le=0.25)
+    drawing_complexity: float = Field(default=0.78, ge=0, le=1)
+    rotation_probability: float = Field(default=0.38, ge=0, le=1)
+    hatch_probability: float = Field(default=0.34, ge=0, le=1)
+    footing_overlap_probability: float = Field(default=0.28, ge=0, le=1)
+    diagonal_beam_probability: float = Field(default=0.24, ge=0, le=1)
+    occupancy_probability: float = Field(default=0.78, gt=0, le=1)
 
     @field_validator("output_name")
     @classmethod
@@ -74,6 +83,12 @@ class GeneratorParameters(BaseModel):
             spacing_y_mm=self.spacing_y_mm,
             storey_height_mm=self.storey_height_mm,
             irregularity_ratio=self.irregularity_ratio,
+            drawing_complexity=self.drawing_complexity,
+            rotation_probability=self.rotation_probability,
+            hatch_probability=self.hatch_probability,
+            footing_overlap_probability=self.footing_overlap_probability,
+            diagonal_beam_probability=self.diagonal_beam_probability,
+            occupancy_probability=self.occupancy_probability,
             layout_mode=layout_mode or self.layout_modes[0],
         )
 
@@ -102,23 +117,20 @@ def _safe_output(root: Path, *parts: str) -> Path:
 
 def _build_preview(root: Path, parameters: GeneratorParameters) -> dict[str, object]:
     output = _safe_output(root, "previews", parameters.output_name)
-    scene = generate_reference_scene(parameters.seed, parameters.scene_config())
+    scene = generate_reference_scene(parameters.seed, parameters.scene_config(layout_mode="irregular"))
     output.mkdir(parents=True, exist_ok=True)
     scene_path = output / "structural_scene.json"
     scene_path.write_text(scene.canonical_json(), encoding="utf-8", newline="\n")
-    dxf_path = export_dxf(scene, output / "model.dxf")
-    ifc_path = export_ifc(scene, output / "model.ifc")
-    artifacts = build_showcase(scene, ifc_path, output, _runner(root), seed=parameters.seed)
+    drawing = render_geometry_preview(scene.model_dump(), output / "drawing.png", size=(1200, 825))
+    annotation = render_annotation_preview(scene.model_dump(), drawing, output / "annotations.png")
     return {
-        "message": "Preview generated",
+        "message": "Fast preview generated",
         "entities": len(scene.entities),
-        "layout": parameters.layout_modes[0],
-        "drawing": f"/outputs/gui/previews/{parameters.output_name}/{artifacts.drawing.name}",
-        "labels": f"/outputs/gui/previews/{parameters.output_name}/{artifacts.annotation.name}",
-        "ifc_render": f"/outputs/gui/previews/{parameters.output_name}/{artifacts.ifc_render.name}",
-        "pipeline": f"/outputs/gui/previews/{parameters.output_name}/{artifacts.hero.name}",
-        "ifc_valid": validate_ifc_file(ifc_path, scene).is_valid,
-        "dxf_valid": validate_dxf_file(dxf_path, scene).is_valid,
+        "layout": "automatic irregular",
+        "drawing": f"/outputs/gui/previews/{parameters.output_name}/{drawing.name}",
+        "labels": f"/outputs/gui/previews/{parameters.output_name}/{annotation.name}",
+        "ifc_render": "/portfolio/ifc_isometric.png",
+        "exchange_status": "validated during full generation",
     }
 
 

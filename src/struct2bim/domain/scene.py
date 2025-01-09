@@ -24,12 +24,25 @@ class SceneSource(DomainModel):
     scene_seed: int
 
 
+class DrawingContext(DomainModel):
+    """Probabilities used to create realistic non-target drafting context."""
+
+    complexity: float = Field(default=0.75, ge=0.0, le=1.0)
+    rotation_probability: float = Field(default=0.35, ge=0.0, le=1.0)
+    outline_probability: float = Field(default=0.35, ge=0.0, le=1.0)
+    hatch_probability: float = Field(default=0.30, ge=0.0, le=1.0)
+    footing_overlap_probability: float = Field(default=0.25, ge=0.0, le=1.0)
+    diagonal_beam_probability: float = Field(default=0.20, ge=0.0, le=1.0)
+    annotation_density: float = Field(default=0.70, ge=0.0, le=1.0)
+
+
 class StructuralScene(DomainModel):
     schema_version: str = "1.0"
     project: SceneProject
     source: SceneSource
     transform: CoordinateTransform
     scale_source: ScaleSource
+    drawing_context: DrawingContext = DrawingContext()
     storeys: tuple[Storey, ...] = Field(min_length=1)
     grids: tuple[GridAxis, ...] = ()
     entities: tuple[StructuralEntity, ...] = ()

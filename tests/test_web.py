@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from struct2bim.web import create_app
-from struct2bim.web.app import GeneratorParameters
+from struct2bim.web.app import GeneratorParameters, _build_preview
 
 
 def test_web_interface_and_defaults_are_available() -> None:
@@ -26,3 +26,12 @@ def test_generator_parameters_reject_unsafe_output_name() -> None:
         assert "output name" in str(error)
     else:
         raise AssertionError("unsafe output name was accepted")
+
+
+def test_quick_preview_uses_dense_automatic_layout(tmp_path: Path) -> None:
+    result = _build_preview(tmp_path, GeneratorParameters())
+
+    assert result["layout"] == "automatic irregular"
+    assert int(result["entities"]) > 1
+    assert result["exchange_status"] == "validated during full generation"
+    assert (tmp_path / "outputs" / "gui" / "previews" / "reference_dataset" / "drawing.png").is_file()

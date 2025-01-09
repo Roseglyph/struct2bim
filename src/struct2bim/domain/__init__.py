@@ -10,13 +10,14 @@ from struct2bim.domain.entities import (
 )
 from struct2bim.domain.geometry import CoordinateTransform, Point2D, Polygon2D
 from struct2bim.domain.provenance import Provenance, ScaleSource, SourceType
-from struct2bim.domain.scene import SceneProject, SceneSource, StructuralScene
+from struct2bim.domain.scene import DrawingContext, SceneProject, SceneSource, StructuralScene
 
 __all__ = [
     "ColumnDimensions",
     "ColumnShape",
     "CoordinateTransform",
     "EntityType",
+    "DrawingContext",
     "GridAxis",
     "Point2D",
     "Polygon2D",

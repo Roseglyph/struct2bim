@@ -174,8 +174,24 @@ def _build_dataset_in_place(
     for scene_index, scene_seed in enumerate(
         range(config.scene_seed_start, config.scene_seed_start + config.scene_count)
     ):
-        layout_mode = config.layout_modes[scene_index % len(config.layout_modes)]
-        update: dict[str, object] = {"layout_mode": layout_mode}
+        # The curriculum is automatic: one isolated calibration scene, then a
+        # short regular stage, followed by predominantly irregular dense plans.
+        if scene_index == 0 and "isolated" in config.layout_modes:
+            layout_mode = "isolated"
+        elif scene_index < max(2, config.scene_count // 4) and "regular" in config.layout_modes:
+            layout_mode = "regular"
+        else:
+            layout_mode = "irregular" if "irregular" in config.layout_modes else config.layout_modes[-1]
+        progress = scene_index / max(config.scene_count - 1, 1)
+        update: dict[str, object] = {
+            "layout_mode": layout_mode,
+            "drawing_complexity": min(1.0, config.scene.drawing_complexity * (0.72 + progress * 0.36)),
+            "rotation_probability": min(1.0, config.scene.rotation_probability * (0.55 + progress * 0.65)),
+            "hatch_probability": min(1.0, config.scene.hatch_probability * (0.65 + progress * 0.55)),
+            "footing_overlap_probability": min(
+                1.0, config.scene.footing_overlap_probability * (0.55 + progress * 0.75)
+            ),
+        }
         if layout_mode == "isolated":
             update["pixels_per_mm"] = min(config.scene.pixels_per_mm * 4.0, 0.5)
         scene_config = config.scene.model_copy(update=update)

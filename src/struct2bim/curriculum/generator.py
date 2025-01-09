@@ -17,7 +17,7 @@ from struct2bim.domain.entities import (
 )
 from struct2bim.domain.geometry import CoordinateTransform, DomainModel, Point2D
 from struct2bim.domain.provenance import Provenance, ScaleSource, SourceType
-from struct2bim.domain.scene import SceneProject, SceneSource, StructuralScene
+from struct2bim.domain.scene import DrawingContext, SceneProject, SceneSource, StructuralScene
 
 
 class ReferenceSceneConfig(DomainModel):
@@ -35,6 +35,13 @@ class ReferenceSceneConfig(DomainModel):
     margin_mm: float = Field(default=800.0, ge=0)
     layout_mode: Literal["isolated", "regular", "irregular"] = "regular"
     irregularity_ratio: float = Field(default=0.12, ge=0.0, le=0.25)
+    drawing_complexity: float = Field(default=0.78, ge=0.0, le=1.0)
+    rotation_probability: float = Field(default=0.38, ge=0.0, le=1.0)
+    outline_probability: float = Field(default=0.32, ge=0.0, le=1.0)
+    hatch_probability: float = Field(default=0.34, ge=0.0, le=1.0)
+    footing_overlap_probability: float = Field(default=0.28, ge=0.0, le=1.0)
+    diagonal_beam_probability: float = Field(default=0.24, ge=0.0, le=1.0)
+    occupancy_probability: float = Field(default=1.0, gt=0.0, le=1.0)
 
     @model_validator(mode="after")
     def validate_canvas_fit(self) -> ReferenceSceneConfig:
@@ -53,7 +60,8 @@ def _centered_positions(count: int, spacing: float) -> tuple[float, ...]:
 
 
 def _column_for_position(
-    *, index: int, variation_index: int, x: float, y: float, storey: Storey, rng: random.Random
+    *, index: int, variation_index: int, x: float, y: float, storey: Storey,
+    rng: random.Random, rotation_probability: float
 ) -> StructuralEntity:
     # A fixed cycle guarantees ontology coverage; seeded choices vary the exact dimensions.
     variation = variation_index % 4
@@ -70,7 +78,10 @@ def _column_for_position(
         else:
             width = float(rng.choice((300, 350, 400)))
             depth = float(rng.choice((500, 600, 700)))
-            rotation = float(rng.choice((0, 30, 45, 90))) if variation == 3 else 0.0
+            rotation = (
+                float(rng.choice((15, 30, 45, 60, 75, 90)))
+                if rng.random() < rotation_probability else 0.0
+            )
         subtype = ColumnShape.RECTANGULAR
         dimensions = ColumnDimensions(width=width, depth=depth, height=storey.height_mm)
         class_id = 0
@@ -138,6 +149,17 @@ def generate_reference_scene(
     storey = Storey(
         id="L01", name="Ground Floor", elevation_mm=0.0, height_mm=resolved.storey_height_mm
     )
+    candidate_positions = [
+        (y_value, x_value) for y_value in y_positions for x_value in x_positions
+    ]
+    if resolved.layout_mode == "irregular":
+        selected_positions = [
+            position for position in candidate_positions if rng.random() < resolved.occupancy_probability
+        ]
+        if len(selected_positions) < min(3, len(candidate_positions)):
+            selected_positions = candidate_positions[: min(3, len(candidate_positions))]
+    else:
+        selected_positions = candidate_positions
     entities = tuple(
         _column_for_position(
             index=index,
@@ -146,10 +168,9 @@ def generate_reference_scene(
             y=y,
             storey=storey,
             rng=rng,
+            rotation_probability=resolved.rotation_probability,
         )
-        for index, (y, x) in enumerate(
-            (position for y_value in y_positions for position in ((y_value, x_value) for x_value in x_positions))
-        )
+        for index, (y, x) in enumerate(selected_positions)
     )
     return StructuralScene(
         project=SceneProject(name=resolved.project_name),
@@ -168,6 +189,15 @@ def generate_reference_scene(
             ),
         ),
         scale_source=ScaleSource.SYNTHETIC_GROUND_TRUTH,
+        drawing_context=DrawingContext(
+            complexity=resolved.drawing_complexity,
+            rotation_probability=resolved.rotation_probability,
+            outline_probability=resolved.outline_probability,
+            hatch_probability=resolved.hatch_probability,
+            footing_overlap_probability=resolved.footing_overlap_probability,
+            diagonal_beam_probability=resolved.diagonal_beam_probability,
+            annotation_density=min(1.0, 0.35 + resolved.drawing_complexity * 0.65),
+        ),
         storeys=(storey,),
         grids=tuple(grids),
         entities=entities,
