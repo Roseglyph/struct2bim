@@ -8,10 +8,11 @@ The current implementation focuses on structural columns and grid systems. It co
 
 ## Features
 
-- Browser-based generator with controls for layouts, variants, drawing scale, grid size, spacing, storey height, and irregularity
+- Resizable multi-pane workbench with a fast 2D preview and a separate Blender dataset build
 - Blender drawing generation from one metric scene definition
-- Isolated, regular-grid, and irregular-grid curriculum stages
-- Clean, scanned-document, and perspective variants
+- Automatic curriculum from calibration scenes to dense irregular structural plans
+- Procedural footings, intersecting tie beams, rotations, hatching, outline-only symbols, dimensions, tags, and linework clutter
+- Automatic clean, scanned-document, and perspective variants
 - Exact YOLO segmentation and oriented-box annotations
 - Semantic masks, instance masks, scene metadata, and file hashes
 - Scene-grouped train, validation, and test splits to prevent variant leakage
@@ -31,8 +32,8 @@ The clean drawing and its annotations use the same coordinate transform. Perspec
 
 The local interface exposes the parameters that define a run and provides two workflows:
 
-- **Build one preview** renders a selected scene and prepares its IFC and DXF outputs.
-- **Generate dataset** runs the complete curriculum, writes the dataset, and validates the result.
+- **Quick preview** builds the plan and annotation views without launching Blender.
+- **Generate dataset** runs the automatic Blender curriculum, writes the dataset, and validates its DXF files, labels, masks, hashes, and grouped splits.
 
 Start it with:
 

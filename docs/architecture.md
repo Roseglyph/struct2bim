@@ -26,6 +26,11 @@ input adapter --> supplied checkpoint --> predictions.json
 - `exporters/`: DXF and deterministic IFC4 creation plus reopen checks.
 - `rendering/` and `showcase/`: isolated headless Blender execution and truthful portfolio visuals.
 
+The drawing context is sampled independently from the column ontology. Footing outlines,
+tie and grade beams, hatching, labels, dimensions, intersections, missing grid positions,
+and line-style changes act as non-target drafting context. The column polygons remain the
+source of truth for segmentation and oriented-box labels.
+
 ## Coordinate contract
 
 World geometry uses millimetres with positive Y upward. Images use top-left origin pixels with positive Y downward. `CoordinateTransform` provides reversible mapping. The Blender orthographic camera reads that exact transform; it does not independently reframe the model. Each document augmentation returns a 3x3 homography, applied to both the image and exact annotation polygons.

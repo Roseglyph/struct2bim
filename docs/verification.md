@@ -6,7 +6,7 @@ This record describes the checks performed on the committed portfolio state. It 
 
 | Gate | Result |
 |---|---:|
-| pytest | 61 tests passed |
+| pytest | 62 tests passed |
 | Ruff | passed |
 | strict mypy | passed |
 | dependency lock | resolved successfully |
