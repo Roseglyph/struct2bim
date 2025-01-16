@@ -56,6 +56,25 @@ class GeneratorParameters(BaseModel):
     footing_overlap_probability: float = Field(default=0.28, ge=0, le=1)
     diagonal_beam_probability: float = Field(default=0.24, ge=0, le=1)
     occupancy_probability: float = Field(default=0.78, gt=0, le=1)
+    building_outline: Literal["rectangular", "irregular_polygon"] = "irregular_polygon"
+    foundation_type: Literal["isolated_tie_beams"] = "isolated_tie_beams"
+    footing_bottom_m: float = Field(default=-1.8, ge=-10, le=0)
+    column_embedment_m: float = Field(default=0.6, ge=0.1, le=3)
+    footing_thickness_m: float = Field(default=0.6, ge=0.2, le=3)
+    tie_beam_width_m: float = Field(default=0.3, ge=0.15, le=1.5)
+    tie_beam_depth_m: float = Field(default=0.6, ge=0.2, le=2)
+    concrete_cover_m: float = Field(default=0.075, ge=0.02, le=0.2)
+    design_code: Literal["ACI 318-19", "ECP 203-2020"] = "ACI 318-19"
+    soil_bearing_capacity_kpa: float = Field(default=200, ge=50, le=1000)
+    column_load_variation: float = Field(default=0.2, ge=0, le=0.8)
+    footing_size_variation: float = Field(default=0.15, ge=0, le=0.8)
+    hatch_density: float = Field(default=0.65, ge=0, le=1)
+    lineweight_variation: float = Field(default=0.35, ge=0, le=1)
+    dimension_jitter_mm: float = Field(default=75, ge=0, le=500)
+    extra_dimension_probability: float = Field(default=0.6, ge=0, le=1)
+    leader_note_probability: float = Field(default=0.55, ge=0, le=1)
+    revision_cloud_probability: float = Field(default=0.18, ge=0, le=1)
+    section_callout_probability: float = Field(default=0.35, ge=0, le=1)
 
     @field_validator("output_name")
     @classmethod
@@ -102,6 +121,30 @@ class GeneratorParameters(BaseModel):
             scene=self.scene_config(layout_mode="regular"),
         )
 
+    def preview_options(self) -> dict[str, object]:
+        """Return drafting controls used by the fast sheet renderer."""
+        return {
+            "building_outline": self.building_outline,
+            "foundation_type": self.foundation_type,
+            "footing_bottom_m": self.footing_bottom_m,
+            "column_embedment_m": self.column_embedment_m,
+            "footing_thickness_m": self.footing_thickness_m,
+            "tie_beam_width_m": self.tie_beam_width_m,
+            "tie_beam_depth_m": self.tie_beam_depth_m,
+            "concrete_cover_m": self.concrete_cover_m,
+            "design_code": self.design_code,
+            "soil_bearing_capacity_kpa": self.soil_bearing_capacity_kpa,
+            "column_load_variation": self.column_load_variation,
+            "footing_size_variation": self.footing_size_variation,
+            "hatch_density": self.hatch_density,
+            "lineweight_variation": self.lineweight_variation,
+            "dimension_jitter_mm": self.dimension_jitter_mm,
+            "extra_dimension_probability": self.extra_dimension_probability,
+            "leader_note_probability": self.leader_note_probability,
+            "revision_cloud_probability": self.revision_cloud_probability,
+            "section_callout_probability": self.section_callout_probability,
+        }
+
 
 def _runner(root: Path) -> BlenderRunner:
     return BlenderRunner(BlenderToolConfig.discover(root), root)
@@ -115,13 +158,48 @@ def _safe_output(root: Path, *parts: str) -> Path:
     return output
 
 
+def _interactive_model(scene: object) -> dict[str, object]:
+    """Return the compact metric geometry used by the browser's 3D viewer."""
+    data = scene.model_dump(mode="json")  # type: ignore[attr-defined]
+    columns: list[dict[str, object]] = []
+    for entity in data["entities"]:
+        if entity.get("type", "column") != "column":
+            continue
+        dimensions = entity["dimensions_mm"]
+        diameter = dimensions.get("diameter") or 350
+        columns.append(
+            {
+                "id": entity["id"],
+                "label": entity.get("label", entity["id"]),
+                "x": entity["center_mm"]["x"],
+                "y": entity["center_mm"]["y"],
+                "width": dimensions.get("width") or diameter,
+                "depth": dimensions.get("depth") or diameter,
+                "height": dimensions["height"],
+                "rotation": entity.get("rotation_deg", 0),
+                "shape": entity.get("subtype", "rectangular"),
+            }
+        )
+    grids = [
+        {
+            "label": axis["label"],
+            "start": [axis["start_mm"]["x"], axis["start_mm"]["y"]],
+            "end": [axis["end_mm"]["x"], axis["end_mm"]["y"]],
+        }
+        for axis in data["grids"]
+    ]
+    return {"units": "mm", "columns": columns, "grids": grids}
+
+
 def _build_preview(root: Path, parameters: GeneratorParameters) -> dict[str, object]:
     output = _safe_output(root, "previews", parameters.output_name)
     scene = generate_reference_scene(parameters.seed, parameters.scene_config(layout_mode="irregular"))
     output.mkdir(parents=True, exist_ok=True)
     scene_path = output / "structural_scene.json"
     scene_path.write_text(scene.canonical_json(), encoding="utf-8", newline="\n")
-    drawing = render_geometry_preview(scene.model_dump(), output / "drawing.png", size=(1200, 825))
+    preview_scene = scene.model_dump()
+    preview_scene["preview_options"] = parameters.preview_options()
+    drawing = render_geometry_preview(preview_scene, output / "drawing.png", size=(1400, 900))
     annotation = render_annotation_preview(scene.model_dump(), drawing, output / "annotations.png")
     return {
         "message": "Fast preview generated",
@@ -131,6 +209,8 @@ def _build_preview(root: Path, parameters: GeneratorParameters) -> dict[str, obj
         "labels": f"/outputs/gui/previews/{parameters.output_name}/{annotation.name}",
         "ifc_render": "/portfolio/ifc_isometric.png",
         "exchange_status": "validated during full generation",
+        "seed": parameters.seed,
+        "model": _interactive_model(scene),
     }
 
 
