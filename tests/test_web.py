@@ -14,9 +14,12 @@ def test_web_interface_and_defaults_are_available() -> None:
     defaults = client.get("/api/defaults")
 
     assert page.status_code == 200
-    assert "Dataset definition" in page.text
+    assert "Dataset generator" in page.text
     assert defaults.status_code == 200
     assert defaults.json()["scene_count"] == 12
+    assert defaults.json()["foundation_type"] == "isolated_tie_beams"
+    assert defaults.json()["design_code"] == "ACI 318-19"
+    assert "Drafting and annotation" in page.text
 
 
 def test_generator_parameters_reject_unsafe_output_name() -> None:
@@ -34,4 +37,5 @@ def test_quick_preview_uses_dense_automatic_layout(tmp_path: Path) -> None:
     assert result["layout"] == "automatic irregular"
     assert int(result["entities"]) > 1
     assert result["exchange_status"] == "validated during full generation"
+    assert result["model"]["grids"]
     assert (tmp_path / "outputs" / "gui" / "previews" / "reference_dataset" / "drawing.png").is_file()

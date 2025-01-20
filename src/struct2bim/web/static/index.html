@@ -3,114 +3,147 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Struct2BIM Workbench</title>
-  <link rel="stylesheet" href="/static/style.css?v=3">
+  <title>Struct2BIM Generator</title>
+  <link rel="stylesheet" href="/static/style.css?v=7">
 </head>
 <body>
-  <div class="application">
-    <header class="command-bar">
-      <div class="product-name"><strong>Struct2BIM</strong><span>Drawing curriculum workbench</span></div>
-      <dl class="run-context">
-        <div><dt>Project</dt><dd id="project-readout">struct2bim_reference</dd></div>
-        <div><dt>Seed</dt><dd id="seed-readout">24017</dd></div>
-        <div><dt>Recipe</dt><dd>automatic / columns</dd></div>
-      </dl>
-      <div class="command-actions">
-        <span id="result-state" class="run-state"><i></i>Ready</span>
-        <button class="preview-action" type="submit" form="generator-form" data-action="preview">Quick preview</button>
-        <button class="generate-action" type="submit" form="generator-form" data-action="generate">Generate dataset</button>
+  <div id="application" class="application">
+    <aside id="inspector" class="inspector">
+      <div class="collapsed-inspector">
+        <button id="expand-inspector" type="button" title="Expand parameters" aria-label="Expand parameters">›</button>
+        <span>PARAMETERS</span>
       </div>
-    </header>
 
-    <main class="workspace">
-      <section class="pipeline-panel">
-        <header><span>AUTOMATIC CURRICULUM</span><strong>Generation graph</strong><small>Every scene samples a complete drawing recipe</small></header>
-        <div class="pipeline-graph" aria-label="Automatic generation pipeline">
-          <div class="graph-node active"><b>01</b><span>Structural grid</span><small>regular + irregular</small></div><i></i>
-          <div class="graph-node"><b>02</b><span>Footings + beams</span><small>overlap + intersections</small></div><i></i>
-          <div class="graph-node"><b>03</b><span>Drafting styles</span><small>outline + hatch + rotate</small></div><i></i>
-          <div class="graph-node"><b>04</b><span>Document capture</span><small>clean + scan + perspective</small></div><i></i>
-          <div class="graph-node"><b>05</b><span>Labels + masks</span><small>segmentation + OBB</small></div><i></i>
-          <div class="graph-node final"><b>06</b><span>IFC4 + DXF</span><small>validated exchange</small></div>
+      <form id="generator-form">
+        <header class="inspector-header">
+          <div><span>STRUCT2BIM</span><strong>Dataset generator</strong></div>
+          <button id="collapse-inspector" type="button" title="Collapse parameters" aria-label="Collapse parameters">‹</button>
+        </header>
+
+        <div class="inspector-scroll">
+          <details open>
+            <summary>Dataset</summary>
+            <div class="section-fields">
+              <label>Dataset type<select disabled><option>Structural foundation</option></select></label>
+              <label>Source<select disabled><option>Algorithmic generator</option></select></label>
+              <label>Grid system<select disabled><option>Custom</option></select></label>
+              <div class="grid-summary">
+                <div><span>Grid X</span><strong id="grid-x-summary">5 @ 3.60 m</strong></div>
+                <div><span>Grid Y</span><strong id="grid-y-summary">6 @ 3.90 m</strong></div>
+                <div><span>Origin</span><strong>0.00 m, 0.00 m</strong></div>
+              </div>
+            </div>
+          </details>
+
+          <details open>
+            <summary>Structural envelope</summary>
+            <div class="section-fields">
+              <label>Building outline<select name="building_outline"><option value="irregular_polygon">Irregular polygon</option><option value="rectangular">Rectangular</option></select></label>
+              <label>Levels<select disabled><option>1 level (foundation only)</option></select></label>
+              <label>Foundation type<select name="foundation_type"><option value="isolated_tie_beams">Isolated footing with tie beams</option></select></label>
+              <div class="field-row">
+                <label>Grid X<input name="columns_x" type="number" min="2" max="12" value="5"></label>
+                <label>Grid Y<input name="columns_y" type="number" min="2" max="12" value="6"></label>
+              </div>
+              <div class="field-row">
+                <label>Bay X <em>mm</em><input name="spacing_x_mm" type="number" value="3600"></label>
+                <label>Bay Y <em>mm</em><input name="spacing_y_mm" type="number" value="3900"></label>
+              </div>
+              <label>Bottom of footing <span class="unit-field"><input name="footing_bottom_m" type="number" step="0.05" value="-1.8"><em>m</em></span></label>
+              <label>Column embedment <span class="unit-field"><input name="column_embedment_m" type="number" step="0.05" value="0.6"><em>m</em></span></label>
+              <label>Min. footing thickness <span class="unit-field"><input name="footing_thickness_m" type="number" step="0.05" value="0.6"><em>m</em></span></label>
+              <label>Tie beam width <span class="unit-field"><input name="tie_beam_width_m" type="number" step="0.05" value="0.3"><em>m</em></span></label>
+              <label>Tie beam depth <span class="unit-field"><input name="tie_beam_depth_m" type="number" step="0.05" value="0.6"><em>m</em></span></label>
+              <label>Concrete cover <span class="unit-field"><input name="concrete_cover_m" type="number" step="0.005" value="0.075"><em>m</em></span></label>
+              <label>Design code<select name="design_code"><option>ACI 318-19</option><option>ECP 203-2020</option></select></label>
+              <label>Units<select disabled><option>Metric (m, kN)</option></select></label>
+            </div>
+          </details>
+
+          <details open>
+            <summary>Automatic variation</summary>
+            <div class="section-fields probability-fields">
+              <label>Column load variation <output data-for="column_load_variation">20%</output><input name="column_load_variation" type="range" min="0" max="0.8" step="0.01" value="0.2"></label>
+              <label>Footing size variation <output data-for="footing_size_variation">15%</output><input name="footing_size_variation" type="range" min="0" max="0.8" step="0.01" value="0.15"></label>
+              <label>Column rotation <output data-for="rotation_probability">38%</output><input name="rotation_probability" type="range" min="0" max="1" step="0.01" value="0.38"></label>
+              <label>Diagonal tie layout <output data-for="diagonal_beam_probability">24%</output><input name="diagonal_beam_probability" type="range" min="0" max="1" step="0.01" value="0.24"></label>
+              <label>Occupied grid points <output data-for="occupancy_probability">78%</output><input name="occupancy_probability" type="range" min="0.2" max="1" step="0.01" value="0.78"></label>
+              <label>Grid irregularity <output data-for="irregularity_ratio">12%</output><input name="irregularity_ratio" type="range" min="0" max="0.25" step="0.01" value="0.12"></label>
+              <label>Soil bearing capacity <span class="unit-field"><input name="soil_bearing_capacity_kpa" type="number" value="200"><em>kPa</em></span></label>
+            </div>
+          </details>
+
+          <details>
+            <summary>Drafting and annotation</summary>
+            <div class="section-fields probability-fields">
+              <label>Drawing complexity <output data-for="drawing_complexity">78%</output><input name="drawing_complexity" type="range" min="0" max="1" step="0.01" value="0.78"></label>
+              <label>Hatching frequency <output data-for="hatch_probability">34%</output><input name="hatch_probability" type="range" min="0" max="1" step="0.01" value="0.34"></label>
+              <label>Hatching density <output data-for="hatch_density">65%</output><input name="hatch_density" type="range" min="0" max="1" step="0.01" value="0.65"></label>
+              <label>Lineweight variation <output data-for="lineweight_variation">35%</output><input name="lineweight_variation" type="range" min="0" max="1" step="0.01" value="0.35"></label>
+              <label>Footing overlap <output data-for="footing_overlap_probability">28%</output><input name="footing_overlap_probability" type="range" min="0" max="1" step="0.01" value="0.28"></label>
+              <label>Dimension jitter <span class="unit-field"><input name="dimension_jitter_mm" type="number" value="75"><em>mm</em></span></label>
+              <label>Extra dimensions <output data-for="extra_dimension_probability">60%</output><input name="extra_dimension_probability" type="range" min="0" max="1" step="0.01" value="0.6"></label>
+              <label>Leader notes <output data-for="leader_note_probability">55%</output><input name="leader_note_probability" type="range" min="0" max="1" step="0.01" value="0.55"></label>
+              <label>Revision clouds <output data-for="revision_cloud_probability">18%</output><input name="revision_cloud_probability" type="range" min="0" max="1" step="0.01" value="0.18"></label>
+              <label>Section callouts <output data-for="section_callout_probability">35%</output><input name="section_callout_probability" type="range" min="0" max="1" step="0.01" value="0.35"></label>
+            </div>
+          </details>
+
+          <details>
+            <summary>Dataset output</summary>
+            <div class="section-fields">
+              <label>Project<input name="project_name" value="struct2bim_reference"></label>
+              <label>Output<input name="output_name" value="reference_dataset"></label>
+              <div class="field-row">
+                <label>Random seed<input name="seed" type="number" value="24017"></label>
+                <label>Scenes<input name="scene_count" type="number" min="3" max="500" value="12"></label>
+              </div>
+              <label>First training seed<input name="scene_seed_start" type="number" value="1000"></label>
+            </div>
+          </details>
         </div>
-      </section>
-      <div class="splitter horizontal" data-split="pipeline" title="Resize pipeline"></div>
 
-      <section class="studio">
-        <form id="generator-form" class="inspector">
-          <header class="panel-title"><div><span>PROPERTIES</span><strong>Dataset definition</strong></div><button id="reset-button" type="button">Reset</button></header>
+        <footer class="inspector-actions">
+          <button id="preview-button" class="preview-action" type="submit" data-action="preview">Quick Preview</button>
+          <button class="generate-action" type="submit" data-action="generate">Generate Dataset</button>
+        </footer>
 
-          <section class="parameter-section identity-fields">
-            <label>Project<input name="project_name" value="struct2bim_reference"></label>
-            <label>Output<input name="output_name" value="reference_dataset"></label>
-            <div class="field-row">
-              <label>Project seed<input name="seed" type="number" value="24017"></label>
-              <label>Scenes<input name="scene_count" type="number" min="3" max="500" value="12"></label>
-            </div>
-            <label>First scene seed<input name="scene_seed_start" type="number" value="1000"></label>
-          </section>
+        <input name="canvas_width_px" type="hidden" value="2048">
+        <input name="canvas_height_px" type="hidden" value="2048">
+        <input name="pixels_per_mm" type="hidden" value="0.075">
+        <input name="storey_height_mm" type="hidden" value="3200">
+      </form>
+    </aside>
 
-          <section class="parameter-section">
-            <h2>STRUCTURAL ENVELOPE</h2>
-            <div class="field-row">
-              <label>Grid columns<input name="columns_x" type="number" min="2" max="12" value="5"></label>
-              <label>Grid rows<input name="columns_y" type="number" min="2" max="12" value="6"></label>
-            </div>
-            <div class="field-row">
-              <label>X spacing <em>mm</em><input name="spacing_x_mm" type="number" value="3600"></label>
-              <label>Y spacing <em>mm</em><input name="spacing_y_mm" type="number" value="3900"></label>
-            </div>
-            <label>Storey height <em>mm</em><input name="storey_height_mm" type="number" value="3200"></label>
-          </section>
+    <div id="inspector-splitter" class="inspector-splitter" title="Resize parameters"><i></i></div>
 
-          <section class="parameter-section variation-controls">
-            <h2>AUTOMATIC VARIATION</h2>
-            <p class="section-note">These values control sampling probability across the dataset. They are not mutually exclusive modes.</p>
-            <label>Drawing complexity <output data-for="drawing_complexity">78%</output><input name="drawing_complexity" type="range" min="0" max="1" step="0.01" value="0.78"></label>
-            <label>Rotated columns <output data-for="rotation_probability">38%</output><input name="rotation_probability" type="range" min="0" max="1" step="0.01" value="0.38"></label>
-            <label>Hatching <output data-for="hatch_probability">34%</output><input name="hatch_probability" type="range" min="0" max="1" step="0.01" value="0.34"></label>
-            <label>Footing overlap <output data-for="footing_overlap_probability">28%</output><input name="footing_overlap_probability" type="range" min="0" max="1" step="0.01" value="0.28"></label>
-            <label>Diagonal connections <output data-for="diagonal_beam_probability">24%</output><input name="diagonal_beam_probability" type="range" min="0" max="1" step="0.01" value="0.24"></label>
-            <label>Occupied grid points <output data-for="occupancy_probability">78%</output><input name="occupancy_probability" type="range" min="0.2" max="1" step="0.01" value="0.78"></label>
-            <label>Grid irregularity <output data-for="irregularity_ratio">12%</output><input name="irregularity_ratio" type="range" min="0" max="0.25" step="0.01" value="0.12"></label>
-          </section>
+    <main class="viewer">
+      <header class="viewer-toolbar">
+        <div class="view-tabs" role="tablist" aria-label="Preview mode">
+          <button class="active" type="button" data-view="drawing" role="tab">Drawing</button>
+          <button type="button" data-view="annotations" role="tab">Annotations</button>
+          <button type="button" data-view="ifc" role="tab">IFC</button>
+        </div>
+        <div class="view-info"><span id="scene-label">Seed 24017</span><i></i><span id="entity-label">Preview not generated</span></div>
+        <div class="view-controls">
+          <button id="zoom-out" type="button" title="Zoom out">−</button>
+          <output id="zoom-level">100%</output>
+          <button id="zoom-in" type="button" title="Zoom in">+</button>
+          <button id="fit-view" type="button">Fit</button>
+        </div>
+      </header>
 
-          <section class="auto-recipe">
-            <span>ALWAYS SAMPLED</span>
-            <div><b>outline-only</b><b>filled</b><b>hatch</b><b>intersections</b><b>dimensions</b><b>line clutter</b></div>
-          </section>
-          <input name="canvas_width_px" type="hidden" value="2048">
-          <input name="canvas_height_px" type="hidden" value="2048">
-          <input name="pixels_per_mm" type="hidden" value="0.075">
-        </form>
-
-        <div class="splitter vertical" data-split="inspector" title="Resize properties"></div>
-
-        <section class="drawing-pane pane">
-          <header class="pane-toolbar"><div><span>PLAN VIEW</span><strong>Generated structural drawing</strong></div><small id="view-scale">0.12 px/mm</small></header>
-          <div class="canvas"><img id="preview-image" src="/portfolio/workspace_drawing.png?v=3" alt="Generated structural floor plan"><div id="message" class="operation-message" aria-live="polite">Adjust the recipe or build a quick preview.</div></div>
-        </section>
-
-        <div class="splitter vertical" data-split="outputs" title="Resize output views"></div>
-
-        <aside class="output-stack">
-          <section class="pane ifc-pane">
-            <header class="pane-toolbar"><div><span>BIM VIEW</span><strong>IFC reference</strong></div><small>IFC4</small></header>
-            <div class="dark-canvas"><img id="ifc-preview" src="/portfolio/ifc_isometric.png" alt="Generated IFC structural model"></div>
-          </section>
-          <div class="splitter horizontal inner" data-split="outputs-height" title="Resize output views"></div>
-          <section class="pane annotation-pane">
-            <header class="pane-toolbar"><div><span>GROUND TRUTH</span><strong>Column annotations</strong></div><small>SEG + OBB</small></header>
-            <div class="canvas compact"><img id="annotation-image" src="/portfolio/dataset_alignment_preview.png" alt="Column annotation preview"></div>
-          </section>
-        </aside>
+      <section id="viewport" class="viewport">
+        <div id="image-stage" class="image-stage">
+          <img id="drawing-image" src="/portfolio/workspace_drawing.png?v=7" alt="Generated structural CAD drawing">
+          <img id="annotation-image" src="/portfolio/dataset_alignment_preview.png" alt="Column ground-truth overlay" hidden>
+        </div>
+        <canvas id="ifc-canvas" aria-label="Interactive 3D IFC model" hidden></canvas>
+        <div id="ifc-help" class="ifc-help" hidden>Drag to orbit · Scroll to zoom · Double-click to reset</div>
+        <div id="message" class="operation-message" aria-live="polite">Quick Preview creates a new scene from the next seed.</div>
       </section>
     </main>
-
-    <footer id="result-metrics" class="status-bar">
-      <div><span>Scenes</span><strong>12</strong></div><div><span>Variants</span><strong>automatic</strong></div><div><span>Target</span><strong>columns</strong></div><div class="validation"><i></i><strong>Reference verified</strong></div><div class="status-spacer"></div><div><span>Exchange</span><strong>IFC4 + DXF</strong></div>
-    </footer>
   </div>
-  <script src="/static/app.js?v=3"></script>
+  <script src="/static/app.js?v=7"></script>
 </body>
 </html>
