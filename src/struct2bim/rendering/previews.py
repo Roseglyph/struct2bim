@@ -246,6 +246,17 @@ def _north_arrow(draw: ImageDraw.ImageDraw, center: tuple[int, int]) -> None:
     _centered_text(draw, (x, y - 47), "N", font=_font(12, True), fill="#2D3337")
 
 
+def _revision_cloud(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int]) -> None:
+    left, top, right, bottom = box
+    radius = 6
+    for x in range(left, right, radius * 2):
+        draw.arc((x, top - radius, x + radius * 2, top + radius), 180, 360, fill="#777D81")
+        draw.arc((x, bottom - radius, x + radius * 2, bottom + radius), 0, 180, fill="#777D81")
+    for y in range(top, bottom, radius * 2):
+        draw.arc((left - radius, y, left + radius, y + radius * 2), 90, 270, fill="#777D81")
+        draw.arc((right - radius, y, right + radius, y + radius * 2), 270, 90, fill="#777D81")
+
+
 def render_annotation_preview(
     scene: Path | dict[str, Any], source_image: Path, output: Path
 ) -> Path:
@@ -465,6 +476,8 @@ def render_geometry_preview(
     grid_font = _font(max(10, size[0] // 125), bold=True)
     note_font = _font(max(9, size[0] // 145))
     label_font = _font(max(10, size[0] // 120), bold=True)
+    lineweight = float(options.get("lineweight_variation", 0.35))
+    primary_width = 1 + round(lineweight * 2)
 
     # Grid axes extend beyond the structural envelope and terminate in bubbles
     # at both sides, as they do on real foundation sheets.
@@ -517,7 +530,7 @@ def render_geometry_preview(
             (min_grid_x - edge_x * 0.92, min_grid_y + span_y * 0.12),
         ]
     boundary = [project(point) for point in boundary_mm]
-    draw.polygon(boundary, outline="#4A5054", width=2)
+    draw.polygon(boundary, outline="#4A5054", width=primary_width)
     center_boundary = (
         sum(point[0] for point in boundary_mm) / len(boundary_mm),
         sum(point[1] for point in boundary_mm) / len(boundary_mm),
@@ -548,8 +561,8 @@ def render_geometry_preview(
         dx, dy = b[0] - a[0], b[1] - a[1]
         length = max(math.hypot(dx, dy), 1)
         offset_x, offset_y = int(-dy / length * 2.5), int(dx / length * 2.5)
-        draw.line((a[0] + offset_x, a[1] + offset_y, b[0] + offset_x, b[1] + offset_y), fill=beam_color, width=1)
-        draw.line((a[0] - offset_x, a[1] - offset_y, b[0] - offset_x, b[1] - offset_y), fill=beam_color, width=1)
+        draw.line((a[0] + offset_x, a[1] + offset_y, b[0] + offset_x, b[1] + offset_y), fill=beam_color, width=primary_width)
+        draw.line((a[0] - offset_x, a[1] - offset_y, b[0] - offset_x, b[1] - offset_y), fill=beam_color, width=primary_width)
         if edge_index % 2 == 0:
             midpoint = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
             draw.multiline_text(
@@ -564,8 +577,12 @@ def render_geometry_preview(
     outline_probability = float(context.get("outline_probability", 0.32))
     overlap_probability = float(context.get("footing_overlap_probability", 0.28))
     variation = float(options.get("footing_size_variation", 0.15))
+    load_variation = float(options.get("column_load_variation", 0.2))
     hatch_density = float(options.get("hatch_density", 0.65))
     annotation_density = float(context.get("annotation_density", 0.8))
+    leader_probability = float(options.get("leader_note_probability", annotation_density))
+    revision_probability = float(options.get("revision_cloud_probability", 0.18))
+    cloud_drawn = False
     footing_types: dict[tuple[int, int], int] = {}
     for index, (entity, polygon) in enumerate(zip(entities, polygons, strict=False), start=1):
         center_mm = _center(entity)
@@ -573,7 +590,7 @@ def render_geometry_preview(
         dimensions = entity.get("dimensions_mm", {})
         diameter = float(dimensions.get("diameter") or 350)
         column_span = max(float(dimensions.get("width") or diameter), float(dimensions.get("depth") or diameter))
-        load_factor = 1 + rng.uniform(-variation, variation)
+        load_factor = 1 + rng.uniform(-variation, variation) + rng.uniform(-load_variation, load_variation) * 0.35
         footing_width = column_span * rng.uniform(4.4, 6.2) * load_factor
         footing_depth = column_span * rng.uniform(4.2, 5.9) * load_factor
         if rng.random() < overlap_probability:
@@ -581,7 +598,7 @@ def render_geometry_preview(
         type_key = (round(footing_width / 300), round(footing_depth / 300))
         footing_type = footing_types.setdefault(type_key, len(footing_types) + 1)
         outer = [project(point) for point in _rect(center_mm, footing_width, footing_depth)]
-        draw.polygon(outer, fill="#FCFBF7", outline=footing_color, width=1)
+        draw.polygon(outer, fill="#FCFBF7", outline=footing_color, width=max(1, primary_width - 1))
         if rng.random() < hatch_probability:
             _draw_hatch(image, outer, "#B6BABD", spacing=max(5, int(12 - hatch_density * 7)))
         points = [project(point) for point in polygon]
@@ -591,12 +608,17 @@ def render_geometry_preview(
             draw.polygon(points, fill="#3F4549", outline="#242A2E", width=2)
         label = str(entity.get("label", f"C{index}"))
         draw.text((center_px[0] + 5, center_px[1] - 13), label, font=label_font, fill=ink)
-        if rng.random() < annotation_density:
+        if rng.random() < leader_probability:
             label_x = center_px[0] + (14 if index % 2 else -58)
             label_y = center_px[1] - 45 if index % 3 else center_px[1] + 20
             draw.line((center_px[0], center_px[1], label_x, label_y + 8), fill="#737A7E", width=1)
             footing_text = f"F{footing_type}\n{footing_width / 1000:.2f} x {footing_depth / 1000:.2f}\nT={float(options.get('footing_thickness_m', 0.6)):.2f}"
             draw.multiline_text((label_x, label_y), footing_text, font=note_font, fill=ink, spacing=1)
+        if not cloud_drawn and rng.random() < revision_probability:
+            xs = [point[0] for point in outer]
+            ys = [point[1] for point in outer]
+            _revision_cloud(draw, (min(xs) - 9, min(ys) - 9, max(xs) + 9, max(ys) + 9))
+            cloud_drawn = True
 
     # Complete grid dimension chains on all four sides.
     x_pixels = [project((value, min_grid_y))[0] for value in x_values]
@@ -604,14 +626,16 @@ def render_geometry_preview(
     x_labels = [f"{abs(second - first):.0f}" for first, second in zip(x_values, x_values[1:], strict=False)]
     reversed_y = list(reversed(y_values))
     y_labels = [f"{abs(second - first):.0f}" for first, second in zip(reversed_y, reversed_y[1:], strict=False)]
-    top_y = project((min_grid_x, max_grid_y + span_y * 0.145))[1]
-    bottom_y = project((min_grid_x, min_grid_y - span_y * 0.118))[1]
+    jitter_px = int(float(options.get("dimension_jitter_mm", 75)) / max(span_y, 1) * size[1])
+    top_y = project((min_grid_x, max_grid_y + span_y * 0.145))[1] + rng.randint(-jitter_px, jitter_px)
+    bottom_y = project((min_grid_x, min_grid_y - span_y * 0.118))[1] + rng.randint(-jitter_px, jitter_px)
     left_x = project((min_grid_x - span_x * 0.14, min_grid_y))[0]
     right_x = project((max_grid_x + span_x * 0.14, min_grid_y))[0]
     _dimension_chain(draw, x_pixels, top_y, x_labels, outward=-1)
-    _dimension_chain(draw, x_pixels, bottom_y, x_labels, outward=1)
     _dimension_chain(draw, y_pixels, left_x, y_labels, vertical=True, outward=1)
-    _dimension_chain(draw, y_pixels, right_x, y_labels, vertical=True, outward=-1)
+    if rng.random() < float(options.get("extra_dimension_probability", 0.6)):
+        _dimension_chain(draw, x_pixels, bottom_y, x_labels, outward=1)
+        _dimension_chain(draw, y_pixels, right_x, y_labels, vertical=True, outward=-1)
     overall_x = f"{max_grid_x - min_grid_x:.0f}"
     _centered_text(draw, ((x_pixels[0] + x_pixels[-1]) / 2, top_y - 24), overall_x, font=note_font, fill=ink)
 
@@ -630,7 +654,8 @@ def render_geometry_preview(
     notes = [
         f"1. DESIGN CODE: {options.get('design_code', 'ACI 318-19')}",
         f"2. ALLOWABLE SOIL PRESSURE = {float(options.get('soil_bearing_capacity_kpa', 200)):.0f} kPa",
-        f"3. BOTTOM OF FOOTING = {float(options.get('footing_bottom_m', -1.8)):.2f} m",
+        f"3. FOOTING LEVEL = {float(options.get('footing_bottom_m', -1.8)):.2f} m; EMBEDMENT = {float(options.get('column_embedment_m', 0.6)):.2f} m",
+        f"4. MINIMUM CONCRETE COVER = {float(options.get('concrete_cover_m', 0.075)):.3f} m",
     ]
     for line_index, line in enumerate(notes):
         draw.text((notes_x + 9, notes_y + 23 + line_index * 13), line, font=note_font, fill=ink)
