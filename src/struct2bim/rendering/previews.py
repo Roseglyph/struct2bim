@@ -10,6 +10,8 @@ from collections.abc import Callable, Iterable
 from typing import Any, cast
 
 from PIL import Image, ImageChops, ImageDraw, ImageFont
+from shapely.geometry import Polygon, box  # type: ignore[import-untyped]
+from shapely.ops import unary_union  # type: ignore[import-untyped]
 
 _BLUE = "#2563A6"
 _GREEN = "#16845B"
@@ -151,6 +153,24 @@ def _camera_projector(
     return project
 
 
+def _fit_bounds_to_aspect(
+    bounds: tuple[float, float, float, float], size: tuple[int, int]
+) -> tuple[float, float, float, float]:
+    """Expand world bounds so X and Y use one undistorted drawing scale."""
+    min_x, min_y, max_x, max_y = bounds
+    world_width = max(max_x - min_x, 1.0)
+    world_height = max(max_y - min_y, 1.0)
+    target_ratio = size[0] / size[1]
+    world_ratio = world_width / world_height
+    if world_ratio < target_ratio:
+        fitted_width = world_height * target_ratio
+        margin = (fitted_width - world_width) / 2
+        return min_x - margin, min_y, max_x + margin, max_y
+    fitted_height = world_width / target_ratio
+    margin = (fitted_height - world_height) / 2
+    return min_x, min_y - margin, max_x, max_y + margin
+
+
 def _badge(draw: ImageDraw.ImageDraw, text: str = "SYNTHETIC GROUND TRUTH") -> None:
     font = _font(22, bold=True)
     box = draw.textbbox((0, 0), text, font=font)
@@ -214,7 +234,7 @@ def _dimension_chain(
     vertical: bool = False,
     outward: int = 1,
 ) -> None:
-    color = "#62686C"
+    color = "#D98E9C"
     font = _font(10)
     if len(positions) < 2:
         return
@@ -223,7 +243,7 @@ def _dimension_chain(
         draw.line((ordinate, first, ordinate, last), fill=color, width=1)
         for index, position in enumerate(positions):
             draw.line((ordinate - 5, position - 5, ordinate + 5, position + 5), fill=color, width=1)
-            draw.line((ordinate, position, ordinate - outward * 13, position), fill="#9CA2A6", width=1)
+            draw.line((ordinate, position, ordinate - outward * 13, position), fill="#E8B5BE", width=1)
             if index < len(labels):
                 midpoint = (position + positions[index + 1]) / 2
                 _centered_text(draw, (ordinate - outward * 19, midpoint), labels[index], font=font, fill=color)
@@ -231,7 +251,7 @@ def _dimension_chain(
         draw.line((first, ordinate, last, ordinate), fill=color, width=1)
         for index, position in enumerate(positions):
             draw.line((position - 5, ordinate + 5, position + 5, ordinate - 5), fill=color, width=1)
-            draw.line((position, ordinate, position, ordinate + outward * 13), fill="#9CA2A6", width=1)
+            draw.line((position, ordinate, position, ordinate + outward * 13), fill="#E8B5BE", width=1)
             if index < len(labels):
                 midpoint = (position + positions[index + 1]) / 2
                 _centered_text(draw, (midpoint, ordinate + outward * 14), labels[index], font=font, fill=color)
@@ -257,6 +277,25 @@ def _revision_cloud(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int]) -
         draw.arc((right - radius, y, right + radius, y + radius * 2), 270, 90, fill="#777D81")
 
 
+def _rotated_text(
+    image: Image.Image,
+    position: tuple[int, int],
+    text: str,
+    *,
+    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    fill: str,
+) -> None:
+    box = ImageDraw.Draw(image).textbbox((0, 0), text, font=font)
+    layer = Image.new(
+        "RGBA",
+        (int(box[2] - box[0] + 8), int(box[3] - box[1] + 8)),
+        (0, 0, 0, 0),
+    )
+    ImageDraw.Draw(layer).text((4, 4), text, font=font, fill=fill)
+    rotated = layer.rotate(90, expand=True)
+    image.paste(rotated, (position[0] - rotated.width // 2, position[1] - rotated.height // 2), rotated)
+
+
 def render_annotation_preview(
     scene: Path | dict[str, Any], source_image: Path, output: Path
 ) -> Path:
@@ -278,148 +317,6 @@ def render_annotation_preview(
     _badge(draw)
     output.parent.mkdir(parents=True, exist_ok=True)
     image.save(output, compress_level=1)
-    return output
-
-
-def _render_geometry_preview_legacy(
-    scene: Path | dict[str, Any], output: Path, *, size: tuple[int, int] = (1200, 900)
-) -> Path:
-    """Render a fast structural-plan preview without launching Blender."""
-    data = _load_scene(scene)
-    image = Image.new("RGB", size, "#FFFEFA")
-    draw = ImageDraw.Draw(image)
-    entities = list(_entities(data))
-    polygons = [_column_polygon(entity) for entity in entities]
-    bounds = _scene_bounds(data, polygons)
-    project = _camera_projector(bounds, size)
-    seed = int(data.get("source", {}).get("scene_seed", 0))
-    rng = random.Random(seed)
-    context = data.get("drawing_context", {})
-    hatch_probability = float(context.get("hatch_probability", 0.34))
-    outline_probability = float(context.get("outline_probability", 0.32))
-    diagonal_probability = float(context.get("diagonal_beam_probability", 0.24))
-    overlap_probability = float(context.get("footing_overlap_probability", 0.28))
-    annotation_density = float(context.get("annotation_density", 0.8))
-
-    grid_color = "#A8AFB4"
-    beam_color = "#4E565B"
-    footing_color = "#555D62"
-    column_color = "#252B2F"
-    label_color = "#30363A"
-    grid_font = _font(max(11, size[0] // 105), bold=True)
-
-    # Grid axes, bubbles, and labels recreate the visual load around targets.
-    for axis in data.get("grids", []):
-        start, end = axis["start_mm"], axis["end_mm"]
-        start_px = project((float(start["x"]), float(start["y"])))
-        end_px = project((float(end["x"]), float(end["y"])))
-        draw.line((*start_px, *end_px), fill=grid_color, width=1)
-        bubble = start_px if abs(end_px[1] - start_px[1]) > abs(end_px[0] - start_px[0]) else end_px
-        radius = max(10, size[0] // 90)
-        draw.ellipse((bubble[0] - radius, bubble[1] - radius, bubble[0] + radius, bubble[1] + radius), outline=grid_color, width=2)
-        label = str(axis.get("label", ""))
-        box = draw.textbbox((0, 0), label, font=grid_font)
-        draw.text((bubble[0] - (box[2] - box[0]) / 2, bubble[1] - (box[3] - box[1]) / 2), label, font=grid_font, fill="#636B70")
-
-    # A slightly irregular double-line foundation boundary gives dense scenes
-    # the same document hierarchy as a real foundation sheet.
-    min_x, min_y, max_x, max_y = bounds
-    inset_x = (max_x - min_x) * 0.075
-    inset_y = (max_y - min_y) * 0.075
-    boundary_mm = [
-        (min_x + inset_x * 1.35, max_y - inset_y),
-        (max_x - inset_x * 1.55, max_y - inset_y * 0.82),
-        (max_x - inset_x * 0.78, max_y - inset_y * 2.05),
-        (max_x - inset_x * 0.88, min_y + inset_y * 1.3),
-        (max_x - inset_x * 1.65, min_y + inset_y * 0.72),
-        (min_x + inset_x * 1.55, min_y + inset_y * 0.88),
-        (min_x + inset_x * 0.72, min_y + inset_y * 2.0),
-        (min_x + inset_x * 0.82, max_y - inset_y * 1.85),
-    ]
-    boundary = [project(point) for point in boundary_mm]
-    draw.polygon(boundary, outline="#42494E", width=3)
-    center_boundary = (
-        sum(point[0] for point in boundary_mm) / len(boundary_mm),
-        sum(point[1] for point in boundary_mm) / len(boundary_mm),
-    )
-    inner_boundary = [
-        project((center_boundary[0] + (point[0] - center_boundary[0]) * 0.985,
-                 center_boundary[1] + (point[1] - center_boundary[1]) * 0.985))
-        for point in boundary_mm
-    ]
-    draw.polygon(inner_boundary, outline="#8B9297", width=1)
-
-    centers = [_center(entity) for entity in entities]
-    # Neighbour connections become double-line tie and grade beams. Some are
-    # diagonal and pass through target columns, matching real foundation plans.
-    sorted_by_y = sorted(centers, key=lambda point: (round(point[1], -2), point[0]))
-    sorted_by_x = sorted(centers, key=lambda point: (round(point[0], -2), point[1]))
-    edges: set[tuple[tuple[float, float], tuple[float, float]]] = set()
-    for ordered in (sorted_by_y, sorted_by_x):
-        for first, second in zip(ordered, ordered[1:], strict=False):
-            dx, dy = abs(second[0] - first[0]), abs(second[1] - first[1])
-            aligned = dy < 900 if ordered is sorted_by_y else dx < 900
-            distance = math.hypot(second[0] - first[0], second[1] - first[1])
-            if aligned or (distance < 7500 and rng.random() < diagonal_probability):
-                edge = tuple(sorted((first, second)))
-                edges.add(edge)  # type: ignore[arg-type]
-    for first, second in edges:
-        a, b = project(first), project(second)
-        dx, dy = b[0] - a[0], b[1] - a[1]
-        length = max(math.hypot(dx, dy), 1)
-        offset_x, offset_y = int(-dy / length * 3), int(dx / length * 3)
-        draw.line((a[0] + offset_x, a[1] + offset_y, b[0] + offset_x, b[1] + offset_y), fill=beam_color, width=2)
-        draw.line((a[0] - offset_x, a[1] - offset_y, b[0] - offset_x, b[1] - offset_y), fill=beam_color, width=2)
-
-    font = _font(max(12, size[0] // 80), bold=True)
-    for index, (entity, polygon) in enumerate(zip(entities, polygons, strict=False), start=1):
-        center_mm = _center(entity)
-        center_px = project(center_mm)
-        dimensions = entity.get("dimensions_mm", {})
-        diameter = dimensions.get("diameter") or 350
-        column_span = max(
-            float(dimensions.get("width") or diameter),
-            float(dimensions.get("depth") or diameter),
-        )
-        footing_width = column_span * rng.uniform(4.2, 8.0)
-        footing_depth = column_span * rng.uniform(3.8, 7.0)
-        if rng.random() < overlap_probability:
-            footing_width *= rng.uniform(1.25, 1.8)
-        outer = [project(point) for point in _rect(center_mm, footing_width, footing_depth)]
-        inner = [project(point) for point in _rect(center_mm, footing_width * 0.72, footing_depth * 0.72)]
-        draw.polygon(outer, fill="#FAFAF8", outline=footing_color, width=2)
-        draw.polygon(inner, fill="#F2F3F1", outline=footing_color, width=2)
-        if rng.random() < hatch_probability:
-            _draw_hatch(image, inner, "#9DA3A7", spacing=max(6, size[0] // 170))
-
-        points = [project(point) for point in polygon]
-        if rng.random() < outline_probability:
-            draw.polygon(points, fill="#FFFEFA", outline=column_color, width=3)
-        else:
-            draw.polygon(points, fill="#4B5256", outline=column_color, width=3)
-        if rng.random() < hatch_probability:
-            _draw_hatch(image, points, column_color, spacing=max(4, size[0] // 220))
-        label = str(entity.get("label", entity.get("classification", {}).get("label", entity.get("id", "column"))))
-        draw.text((center_px[0] + 7, center_px[1] - 18), label, font=font, fill=label_color)
-        if rng.random() < annotation_density:
-            draw.text((center_px[0] - 10, center_px[1] + 10), f"F{1 + index % 8}", font=_font(max(9, size[0] // 115), True), fill=label_color)
-
-    # Dimension strings and a small stair symbol create realistic non-target clutter.
-    dim_y = project((min_x, min_y + (max_y - min_y) * 0.035))[1]
-    left, right = project((min_x + (max_x - min_x) * 0.1, min_y)), project((max_x - (max_x - min_x) * 0.1, min_y))
-    draw.line((left[0], dim_y, right[0], dim_y), fill=grid_color, width=1)
-    draw.text(((left[0] + right[0]) // 2 - 35, dim_y - 18), f"{max_x - min_x:.0f}", font=_font(max(9, size[0] // 120)), fill="#626A6F")
-    stair_x, stair_y = int(size[0] * 0.47), int(size[1] * 0.47)
-    for step in range(8):
-        draw.line((stair_x, stair_y + step * 5, stair_x + 42, stair_y + step * 5), fill="#565F62", width=1)
-    draw.text((stair_x + 46, stair_y + 8), "STAIR", font=_font(max(9, size[0] // 120), True), fill="#565F62")
-
-    output.parent.mkdir(parents=True, exist_ok=True)
-    image.save(output, compress_level=1)
-    output.with_suffix(output.suffix + ".render.json").write_text(
-        json.dumps({"image_size": list(size), "world_bounds_mm": list(bounds), "seed": seed}, indent=2),
-        encoding="utf-8",
-    )
     return output
 
 
@@ -461,18 +358,20 @@ def render_geometry_preview(
     min_grid_y, max_grid_y = min(y_values), max(y_values)
     span_x = max(max_grid_x - min_grid_x, 1000)
     span_y = max(max_grid_y - min_grid_y, 1000)
-    bounds = (
+    bounds = _fit_bounds_to_aspect((
         min_grid_x - span_x * 0.18,
         min_grid_y - span_y * 0.29,
         max_grid_x + span_x * 0.18,
         max_grid_y + span_y * 0.19,
-    )
+    ), size)
     project = _camera_projector(bounds, size)
 
-    grid_color = "#9BA1A5"
-    ink = "#30363A"
-    beam_color = "#555C60"
-    footing_color = "#555C60"
+    grid_color = "#E8A1AD"
+    ink = "#4A4F53"
+    beam_color = "#19C8D0"
+    footing_color = "#28DA48"
+    column_color = "#0BBE35"
+    footing_label_color = "#E2D30A"
     grid_font = _font(max(10, size[0] // 125), bold=True)
     note_font = _font(max(9, size[0] // 145))
     label_font = _font(max(10, size[0] // 120), bold=True)
@@ -493,7 +392,7 @@ def render_geometry_preview(
             draw.ellipse(
                 (bubble[0] - bubble_radius, bubble[1] - bubble_radius,
                  bubble[0] + bubble_radius, bubble[1] + bubble_radius),
-                fill="#FEFDF9", outline="#636A6F", width=1,
+                fill="#FEFDF9", outline=grid_color, width=1,
             )
             _centered_text(draw, bubble, str(axis.get("label", "")), font=grid_font, fill=ink)
     for axis in horizontal_axes:
@@ -505,7 +404,7 @@ def render_geometry_preview(
             draw.ellipse(
                 (bubble[0] - bubble_radius, bubble[1] - bubble_radius,
                  bubble[0] + bubble_radius, bubble[1] + bubble_radius),
-                fill="#FEFDF9", outline="#636A6F", width=1,
+                fill="#FEFDF9", outline=grid_color, width=1,
             )
             _centered_text(draw, bubble, str(axis.get("label", "")), font=grid_font, fill=ink)
 
@@ -529,34 +428,50 @@ def render_geometry_preview(
             (min_grid_x - edge_x, max_grid_y - span_y * 0.15),
             (min_grid_x - edge_x * 0.92, min_grid_y + span_y * 0.12),
         ]
-    boundary = [project(point) for point in boundary_mm]
-    draw.polygon(boundary, outline="#4A5054", width=primary_width)
-    center_boundary = (
-        sum(point[0] for point in boundary_mm) / len(boundary_mm),
-        sum(point[1] for point in boundary_mm) / len(boundary_mm),
-    )
-    inner_boundary = [
-        project((center_boundary[0] + (point[0] - center_boundary[0]) * 0.985,
-                 center_boundary[1] + (point[1] - center_boundary[1]) * 0.985))
-        for point in boundary_mm
-    ]
-    draw.polygon(inner_boundary, outline="#A1A6AA", width=1)
+    if options.get("building_outline") != "none":
+        boundary = [project(point) for point in boundary_mm]
+        draw.polygon(boundary, outline="#707579", width=primary_width)
+        center_boundary = (
+            sum(point[0] for point in boundary_mm) / len(boundary_mm),
+            sum(point[1] for point in boundary_mm) / len(boundary_mm),
+        )
+        inner_boundary = [
+            project((center_boundary[0] + (point[0] - center_boundary[0]) * 0.985,
+                     center_boundary[1] + (point[1] - center_boundary[1]) * 0.985))
+            for point in boundary_mm
+        ]
+        draw.polygon(inner_boundary, outline="#A1A6AA", width=1)
 
     centers = [_center(entity) for entity in entities]
     sorted_by_y = sorted(centers, key=lambda point: (round(point[1], -2), point[0]))
     sorted_by_x = sorted(centers, key=lambda point: (round(point[0], -2), point[1]))
     diagonal_probability = float(context.get("diagonal_beam_probability", 0.24))
+    bay_x = max((second - first for first, second in zip(x_values, x_values[1:], strict=False)), default=span_x)
+    bay_y = max((second - first for first, second in zip(y_values, y_values[1:], strict=False)), default=span_y)
+    local_bay = max(bay_x, bay_y)
     edges: set[tuple[tuple[float, float], tuple[float, float]]] = set()
     for ordered, tolerance in ((sorted_by_y, 900), (sorted_by_x, 900)):
         for first, second in zip(ordered, ordered[1:], strict=False):
             dx, dy = abs(second[0] - first[0]), abs(second[1] - first[1])
             aligned = dy < tolerance if ordered is sorted_by_y else dx < tolerance
             distance = math.hypot(second[0] - first[0], second[1] - first[1])
-            if aligned or (distance < max(span_x, span_y) * 0.42 and rng.random() < diagonal_probability):
+            local_aligned = aligned and distance <= local_bay * 2.15
+            local_diagonal = distance <= local_bay * 1.65 and rng.random() < diagonal_probability
+            if local_aligned or local_diagonal:
                 edges.add(tuple(sorted((first, second))))  # type: ignore[arg-type]
     beam_depth = float(options.get("tie_beam_depth_m", 0.6))
     beam_width = float(options.get("tie_beam_width_m", 0.3))
+    beam_models: list[dict[str, Any]] = []
     for edge_index, (first, second) in enumerate(sorted(edges), start=1):
+        beam_models.append(
+            {
+                "id": f"TB-{edge_index:03d}",
+                "start": [first[0], first[1]],
+                "end": [second[0], second[1]],
+                "width": beam_width * 1000,
+                "depth": beam_depth * 1000,
+            }
+        )
         a, b = project(first), project(second)
         dx, dy = b[0] - a[0], b[1] - a[1]
         length = max(math.hypot(dx, dy), 1)
@@ -573,6 +488,41 @@ def render_geometry_preview(
                 spacing=0,
             )
 
+    # Stair cores and short wall returns are non-target context found in the
+    # supplied foundation plan. They stay aligned to the same structural grid.
+    if len(x_values) >= 4 and len(y_values) >= 7:
+        stair_x = x_values[2] + (x_values[3] - x_values[2]) * 0.28
+        stair_centers = [
+            min_grid_y + span_y * 0.34,
+            min_grid_y + span_y * 0.69,
+        ]
+        stair_height = span_y / max(len(y_values) - 1, 1) * 1.55
+        stair_width = min(span_x / max(len(x_values) - 1, 1) * 0.34, 850.0)
+        for stair_center_y in stair_centers:
+            left = project((stair_x - stair_width / 2, stair_center_y - stair_height / 2))
+            right = project((stair_x + stair_width / 2, stair_center_y + stair_height / 2))
+            x_left, x_right = sorted((left[0], right[0]))
+            y_top, y_bottom = sorted((left[1], right[1]))
+            draw.line((x_left, y_top, x_left, y_bottom), fill="#4E5357", width=1)
+            draw.line((x_right, y_top, x_right, y_bottom), fill="#4E5357", width=1)
+            _dashed_line(
+                draw,
+                ((x_left + x_right) // 2, y_top),
+                ((x_left + x_right) // 2, y_bottom),
+                fill="#6D7276",
+                dash=5,
+                gap=4,
+            )
+            for tread_y in range(y_top + 8, y_bottom, 10):
+                draw.line((x_left, tread_y, x_right, tread_y), fill="#B0B4B7", width=1)
+            _rotated_text(
+                image,
+                ((x_left + x_right) // 2, (y_top + y_bottom) // 2),
+                "STAIRS",
+                font=note_font,
+                fill="#3F4448",
+            )
+
     hatch_probability = float(context.get("hatch_probability", 0.34))
     outline_probability = float(context.get("outline_probability", 0.32))
     overlap_probability = float(context.get("footing_overlap_probability", 0.28))
@@ -583,42 +533,155 @@ def render_geometry_preview(
     leader_probability = float(options.get("leader_note_probability", annotation_density))
     revision_probability = float(options.get("revision_cloud_probability", 0.18))
     cloud_drawn = False
-    footing_types: dict[tuple[int, int], int] = {}
+    footing_specs: list[dict[str, Any]] = []
     for index, (entity, polygon) in enumerate(zip(entities, polygons, strict=False), start=1):
         center_mm = _center(entity)
-        center_px = project(center_mm)
         dimensions = entity.get("dimensions_mm", {})
         diameter = float(dimensions.get("diameter") or 350)
         column_span = max(float(dimensions.get("width") or diameter), float(dimensions.get("depth") or diameter))
         load_factor = 1 + rng.uniform(-variation, variation) + rng.uniform(-load_variation, load_variation) * 0.35
-        footing_width = column_span * rng.uniform(4.4, 6.2) * load_factor
-        footing_depth = column_span * rng.uniform(4.2, 5.9) * load_factor
+        footing_width: float = float(round(column_span * rng.uniform(3.8, 5.8) * load_factor / 250) * 250)
+        footing_depth: float = float(round(column_span * rng.uniform(3.8, 5.5) * load_factor / 250) * 250)
+        footing_width = min(3500.0, max(1250.0, footing_width))
+        footing_depth = min(3500.0, max(1250.0, footing_depth))
         if rng.random() < overlap_probability:
-            footing_width *= rng.uniform(1.12, 1.3)
-        type_key = (round(footing_width / 300), round(footing_depth / 300))
-        footing_type = footing_types.setdefault(type_key, len(footing_types) + 1)
-        outer = [project(point) for point in _rect(center_mm, footing_width, footing_depth)]
-        draw.polygon(outer, fill="#FCFBF7", outline=footing_color, width=max(1, primary_width - 1))
-        if rng.random() < hatch_probability:
-            _draw_hatch(image, outer, "#B6BABD", spacing=max(5, int(12 - hatch_density * 7)))
+            footing_width = min(4200.0, footing_width + rng.choice((500.0, 750.0, 1000.0)))
+        footing_specs.append(
+            {
+                "index": index,
+                "entity": entity,
+                "polygon": polygon,
+                "center": center_mm,
+                "width": footing_width,
+                "depth": footing_depth,
+                "shape": box(
+                    center_mm[0] - footing_width / 2,
+                    center_mm[1] - footing_depth / 2,
+                    center_mm[0] + footing_width / 2,
+                    center_mm[1] + footing_depth / 2,
+                ),
+            }
+        )
+
+    parents = list(range(len(footing_specs)))
+    group_sizes = [1] * len(footing_specs)
+
+    def find(item: int) -> int:
+        while parents[item] != item:
+            parents[item] = parents[parents[item]]
+            item = parents[item]
+        return item
+
+    def union(first: int, second: int) -> bool:
+        root_first, root_second = find(first), find(second)
+        if root_first == root_second:
+            return True
+        if group_sizes[root_first] + group_sizes[root_second] > 3:
+            return False
+        parents[root_second] = root_first
+        group_sizes[root_first] += group_sizes[root_second]
+        return True
+
+    linked_pairs: list[tuple[int, int]] = []
+    row_tolerance = max(250.0, span_y / max(len(y_values) - 1, 1) * 0.12)
+    column_tolerance = max(250.0, span_x / max(len(x_values) - 1, 1) * 0.12)
+    for first_index, first_spec in enumerate(footing_specs):
+        for second_index in range(first_index + 1, len(footing_specs)):
+            second_spec = footing_specs[second_index]
+            dx = abs(first_spec["center"][0] - second_spec["center"][0])
+            dy = abs(first_spec["center"][1] - second_spec["center"][1])
+            horizontal_gap = dx - (first_spec["width"] + second_spec["width"]) / 2
+            vertical_gap = dy - (first_spec["depth"] + second_spec["depth"]) / 2
+            close_row = dy <= row_tolerance and horizontal_gap <= 180
+            close_column = dx <= column_tolerance and vertical_gap <= 180
+            if (close_row or close_column) and union(first_index, second_index):
+                linked_pairs.append((first_index, second_index))
+
+    grouped: dict[int, list[int]] = {}
+    for spec_index in range(len(footing_specs)):
+        grouped.setdefault(find(spec_index), []).append(spec_index)
+
+    footing_types: dict[tuple[int, int, int], int] = {}
+    footing_models: list[dict[str, Any]] = []
+    for member_indices in grouped.values():
+        member_shapes = [footing_specs[member]["shape"] for member in member_indices]
+        connectors: list[Polygon] = []
+        for first_index, second_index in linked_pairs:
+            if first_index not in member_indices or second_index not in member_indices:
+                continue
+            first_spec = footing_specs[first_index]
+            second_spec = footing_specs[second_index]
+            x1, y1 = first_spec["center"]
+            x2, y2 = second_spec["center"]
+            if abs(y1 - y2) <= row_tolerance:
+                corridor = min(first_spec["depth"], second_spec["depth"]) * 0.62
+                connectors.append(box(min(x1, x2), (y1 + y2) / 2 - corridor / 2, max(x1, x2), (y1 + y2) / 2 + corridor / 2))
+            elif abs(x1 - x2) <= column_tolerance:
+                corridor = min(first_spec["width"], second_spec["width"]) * 0.62
+                connectors.append(box((x1 + x2) / 2 - corridor / 2, min(y1, y2), (x1 + x2) / 2 + corridor / 2, max(y1, y2)))
+        combined = unary_union([*member_shapes, *connectors])
+        if len(member_indices) == 2:
+            first_spec, second_spec = (footing_specs[member] for member in member_indices)
+            x_aligned = abs(first_spec["center"][0] - second_spec["center"][0]) <= column_tolerance
+            y_aligned = abs(first_spec["center"][1] - second_spec["center"][1]) <= row_tolerance
+            if x_aligned or y_aligned:
+                combined = combined.envelope
+        pieces = list(combined.geoms) if hasattr(combined, "geoms") else [combined]
+        for piece in pieces:
+            outer_world = [(float(x), float(y)) for x, y in piece.exterior.coords[:-1]]
+            outer = [project(point) for point in outer_world]
+            # Footings are intentionally drawn after tie beams. The beam remains
+            # continuous structurally, while the footing boundary stays legible
+            # at every crossing, matching the supplied CAD reference.
+            footing_line_width = max(3, primary_width + 1)
+            draw.polygon(outer, outline=footing_color, width=footing_line_width)
+            inset = piece.buffer(-max(120.0, min(piece.bounds[2] - piece.bounds[0], piece.bounds[3] - piece.bounds[1]) * 0.09), join_style=2)
+            if not inset.is_empty:
+                inset_pieces = list(inset.geoms) if hasattr(inset, "geoms") else [inset]
+                for inset_piece in inset_pieces:
+                    inner = [project((float(x), float(y))) for x, y in inset_piece.exterior.coords[:-1]]
+                    draw.polygon(inner, outline=footing_color, width=max(2, primary_width))
+                    if rng.random() < hatch_probability:
+                        _draw_hatch(image, inner, footing_color, spacing=max(5, int(12 - hatch_density * 7)))
+            bounds_key = (
+                round((piece.bounds[2] - piece.bounds[0]) / 300),
+                round((piece.bounds[3] - piece.bounds[1]) / 300),
+                len(member_indices),
+            )
+            footing_type = footing_types.setdefault(bounds_key, len(footing_types) + 1)
+            footing_models.append(
+                {
+                    "id": f"F-{len(footing_models) + 1:03d}",
+                    "type": f"F{footing_type}",
+                    "polygon": [[x, y] for x, y in outer_world],
+                    "members": [
+                        str(footing_specs[member]["entity"].get("label", f"C{member + 1}"))
+                        for member in member_indices
+                    ],
+                    "bottom": -float(options.get("footing_thickness_m", 0.6)) * 1000,
+                    "level": float(options.get("footing_bottom_m", -1.8)) * 1000,
+                    "thickness": float(options.get("footing_thickness_m", 0.6)) * 1000,
+                }
+            )
+            centroid_px = project((float(piece.centroid.x), float(piece.centroid.y)))
+            draw.text((centroid_px[0] + 9, centroid_px[1] - 20), f"F{footing_type}", font=label_font, fill=footing_label_color)
+            if rng.random() < leader_probability:
+                draw.text((centroid_px[0] + 14, centroid_px[1] + 8), f"{len(member_indices)} COL", font=note_font, fill=ink)
+            if not cloud_drawn and rng.random() < revision_probability:
+                xs = [point[0] for point in outer]
+                ys = [point[1] for point in outer]
+                _revision_cloud(draw, (min(xs) - 9, min(ys) - 9, max(xs) + 9, max(ys) + 9))
+                cloud_drawn = True
+
+    # Columns remain separate objects inside shared footing geometry.
+    for entity, polygon in zip(entities, polygons, strict=False):
         points = [project(point) for point in polygon]
-        if rng.random() < outline_probability:
-            draw.polygon(points, fill="#FEFDF9", outline="#242A2E", width=2)
-        else:
-            draw.polygon(points, fill="#3F4549", outline="#242A2E", width=2)
-        label = str(entity.get("label", f"C{index}"))
-        draw.text((center_px[0] + 5, center_px[1] - 13), label, font=label_font, fill=ink)
-        if rng.random() < leader_probability:
-            label_x = center_px[0] + (14 if index % 2 else -58)
-            label_y = center_px[1] - 45 if index % 3 else center_px[1] + 20
-            draw.line((center_px[0], center_px[1], label_x, label_y + 8), fill="#737A7E", width=1)
-            footing_text = f"F{footing_type}\n{footing_width / 1000:.2f} x {footing_depth / 1000:.2f}\nT={float(options.get('footing_thickness_m', 0.6)):.2f}"
-            draw.multiline_text((label_x, label_y), footing_text, font=note_font, fill=ink, spacing=1)
-        if not cloud_drawn and rng.random() < revision_probability:
-            xs = [point[0] for point in outer]
-            ys = [point[1] for point in outer]
-            _revision_cloud(draw, (min(xs) - 9, min(ys) - 9, max(xs) + 9, max(ys) + 9))
-            cloud_drawn = True
+        draw.polygon(
+            points,
+            fill="#FEFDF9",
+            outline=column_color,
+            width=2 if rng.random() < outline_probability else 3,
+        )
 
     # Complete grid dimension chains on all four sides.
     x_pixels = [project((value, min_grid_y))[0] for value in x_values]
@@ -680,7 +743,16 @@ def render_geometry_preview(
     output.parent.mkdir(parents=True, exist_ok=True)
     image.save(output, compress_level=1)
     output.with_suffix(output.suffix + ".render.json").write_text(
-        json.dumps({"image_size": list(size), "world_bounds_mm": list(bounds), "seed": seed}, indent=2),
+        json.dumps(
+            {
+                "image_size": list(size),
+                "world_bounds_mm": list(bounds),
+                "seed": seed,
+                "beams": beam_models,
+                "footings": footing_models,
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
     return output
