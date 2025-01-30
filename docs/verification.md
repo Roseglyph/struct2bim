@@ -50,14 +50,17 @@ The IFC showcase image is rendered from tessellated IFC geometry and extracted I
 The following committed assets were opened at original resolution and checked for legibility, alignment, clipping, and truthful captions:
 
 - `docs/assets/pipeline_overview.png`;
-- `docs/assets/generator-interface.png`;
+- `docs/assets/foundation-drawing.png`;
+- `docs/assets/foundation-annotations.png`;
+- `docs/assets/foundation-ifc.png`;
 - `docs/assets/workflow_diagram.png`;
-- `docs/assets/workspace_drawing.png`;
 - `docs/assets/curriculum_variations.png`;
 - `docs/assets/dataset_alignment_preview.png`;
 - `docs/assets/ifc_isometric.png`.
 
 Public figures distinguish generated reference geometry from detector predictions. No panel is presented as a trained-model result.
+
+The browser workspace was also exercised interactively. Consecutive Quick Preview runs advanced the seed and produced different scenes; Drawing, Annotations, and IFC stayed synchronized; the IFC view consumed the drawing sidecar's exact footing polygons and tie-beam endpoints; IFC orbit and zoom changed the live camera; and the parameter inspector was resized, collapsed, expanded, and restored without losing the active preview.
 
 ## Intentionally unverified
 

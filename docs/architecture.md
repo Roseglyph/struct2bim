@@ -31,6 +31,21 @@ tie and grade beams, hatching, labels, dimensions, intersections, missing grid p
 and line-style changes act as non-target drafting context. The column polygons remain the
 source of truth for segmentation and oriented-box labels.
 
+The browser preview returns a compact metric scene model alongside the drawing and
+annotation images. The renderer records the exact footing polygons and tie-beam endpoints
+in the drawing sidecar. The IFC view consumes those polygons and connections together with
+the same column dimensions, rotations, heights, and grid axes. Drawing and annotation views
+share pan and zoom state. A preview advances the configured seed before requesting a new
+scene, so consecutive clicks cannot silently reuse the previous drawing.
+
+The fast sheet renderer composes the target geometry inside a conventional foundation-plan
+drawing. Grid axes and bubbles, bay dimensions, isolated footings, local combined or stepped
+footing envelopes, tie-beam linework, leaders, footing schedules, general notes, legend,
+scale, title, section markers, and north arrow are deterministic drafting context. Tie beams
+are drawn before footing boundaries so the green footing outline remains readable at each
+crossing. Structural controls and drafting probabilities are kept separate in the browser
+inspector and are passed explicitly into each preview request.
+
 ## Coordinate contract
 
 World geometry uses millimetres with positive Y upward. Images use top-left origin pixels with positive Y downward. `CoordinateTransform` provides reversible mapping. The Blender orthographic camera reads that exact transform; it does not independently reframe the model. Each document augmentation returns a 3x3 homography, applied to both the image and exact annotation polygons.

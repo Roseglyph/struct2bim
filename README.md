@@ -1,14 +1,14 @@
 # Struct2BIM
 
-Struct2BIM explores a practical route from structural floor plans to BIM-ready geometry. The project generates configurable floor-plan drawings in Blender, derives exact annotations from their source geometry, and exports the same scene as IFC4 and DXF.
+Struct2BIM explores a practical route from structural foundation drawings to BIM-ready geometry. It generates configurable engineering sheets, derives exact annotations from their source geometry, and exports the same metric scene as IFC4 and DXF.
 
-The current implementation focuses on structural columns and grid systems. It covers the complete data path around a detector: curriculum generation, document variations, YOLO segmentation and oriented-box labels, grouped dataset splits, input adapters, scale calibration, and validated exchange models.
-
-![Struct2BIM generator interface](docs/assets/generator-interface.png)
+The current implementation focuses on structural grids, columns, isolated footings, local combined or stepped footing conditions, and tie beams. It covers the complete data path around a detector: curriculum generation, document variations, YOLO segmentation and oriented-box labels, grouped dataset splits, input adapters, scale calibration, and validated exchange models.
 
 ## Features
 
-- Resizable multi-pane workbench with a fast 2D preview and a separate Blender dataset build
+- Two-pane editor with a resizable, collapsible parameter inspector and a large drawing workspace
+- Drawing and ground-truth tabs with pan, zoom, and fit controls
+- Interactive orbit-and-zoom IFC view generated from the same footing polygons, tie beams, columns, and grid axes as the drawing
 - Blender drawing generation from one metric scene definition
 - Automatic curriculum from calibration scenes to dense irregular structural plans
 - Procedural footings, intersecting tie beams, rotations, hatching, outline-only symbols, dimensions, tags, and linework clutter
@@ -30,10 +30,32 @@ The clean drawing and its annotations use the same coordinate transform. Perspec
 
 ## Generator interface
 
-The local interface exposes the parameters that define a run and provides two workflows:
+The local interface keeps structural definition, variation controls, and dataset output in one resizable inspector. Drawing, Annotations, and IFC are three synchronized views of the same seeded scene.
 
-- **Quick preview** builds the plan and annotation views without launching Blender.
+### Drawing
+
+The Drawing tab presents a CAD-layer view with grid bubbles, dimension chains, columns, footing types, combined and stepped footing envelopes, tie beams, notes, and sheet furniture.
+
+![Generated structural foundation drawing](docs/assets/foundation-drawing.png)
+
+### Exact annotations
+
+The Annotations tab overlays every target polygon and identifier on the same rendered sheet. It does not re-create or approximate the drawing in a separate coordinate system.
+
+![Exact column annotations on the generated drawing](docs/assets/foundation-annotations.png)
+
+### Interactive IFC preview
+
+The IFC tab builds an orbitable 3D view from the exact footprint polygons and connections used in the active drawing. Resizing or collapsing the inspector leaves the current scene intact.
+
+![Interactive IFC scene generated from the drawing geometry](docs/assets/foundation-ifc.png)
+
+The interface provides two workflows:
+
+- **Quick Preview** advances the seed and builds a completely new plan, annotation overlay, and interactive 3D scene without launching Blender.
 - **Generate dataset** runs the automatic Blender curriculum, writes the dataset, and validates its DXF files, labels, masks, hashes, and grouped splits.
+
+Foundation levels, footing and tie-beam dimensions, design code, soil capacity, layout density, rotations, hatching, callouts, and annotation clutter can be reviewed without mixing them with dataset output settings.
 
 Start it with:
 
