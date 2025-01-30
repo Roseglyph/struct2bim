@@ -19,7 +19,10 @@ def test_web_interface_and_defaults_are_available() -> None:
     assert defaults.json()["scene_count"] == 12
     assert defaults.json()["foundation_type"] == "isolated_tie_beams"
     assert defaults.json()["design_code"] == "ACI 318-19"
+    assert (defaults.json()["columns_x"], defaults.json()["columns_y"]) == (8, 11)
+    assert defaults.json()["building_outline"] == "none"
     assert "Drafting and annotation" in page.text
+    assert page.headers["cache-control"] == "no-store"
 
 
 def test_generator_parameters_reject_unsafe_output_name() -> None:
@@ -38,4 +41,13 @@ def test_quick_preview_uses_dense_automatic_layout(tmp_path: Path) -> None:
     assert int(result["entities"]) > 1
     assert result["exchange_status"] == "validated during full generation"
     assert result["model"]["grids"]
+    assert result["model"]["footings"]
+    assert result["model"]["beams"]
+    column_labels = {column["label"] for column in result["model"]["columns"]}
+    footing_members = {
+        member
+        for footing in result["model"]["footings"]
+        for member in footing["members"]
+    }
+    assert footing_members == column_labels
     assert (tmp_path / "outputs" / "gui" / "previews" / "reference_dataset" / "drawing.png").is_file()

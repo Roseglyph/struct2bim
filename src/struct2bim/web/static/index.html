@@ -28,26 +28,27 @@
               <label>Source<select disabled><option>Algorithmic generator</option></select></label>
               <label>Grid system<select disabled><option>Custom</option></select></label>
               <div class="grid-summary">
-                <div><span>Grid X</span><strong id="grid-x-summary">5 @ 3.60 m</strong></div>
-                <div><span>Grid Y</span><strong id="grid-y-summary">6 @ 3.90 m</strong></div>
+                <div><span>Grid X</span><strong id="grid-x-summary">8 @ 2.40 m</strong></div>
+                <div><span>Grid Y</span><strong id="grid-y-summary">11 @ 3.00 m</strong></div>
                 <div><span>Origin</span><strong>0.00 m, 0.00 m</strong></div>
               </div>
+              <label>Dataset scenes<input name="scene_count" type="number" min="3" max="500" value="12"></label>
             </div>
           </details>
 
           <details open>
             <summary>Structural envelope</summary>
             <div class="section-fields">
-              <label>Building outline<select name="building_outline"><option value="irregular_polygon">Irregular polygon</option><option value="rectangular">Rectangular</option></select></label>
+              <label>Building outline<select name="building_outline"><option value="none">Structural grid only</option><option value="irregular_polygon">Irregular polygon</option><option value="rectangular">Rectangular</option></select></label>
               <label>Levels<select disabled><option>1 level (foundation only)</option></select></label>
               <label>Foundation type<select name="foundation_type"><option value="isolated_tie_beams">Isolated footing with tie beams</option></select></label>
               <div class="field-row">
-                <label>Grid X<input name="columns_x" type="number" min="2" max="12" value="5"></label>
-                <label>Grid Y<input name="columns_y" type="number" min="2" max="12" value="6"></label>
+                <label>Grid X<input name="columns_x" type="number" min="2" max="12" value="8"></label>
+                <label>Grid Y<input name="columns_y" type="number" min="2" max="12" value="11"></label>
               </div>
               <div class="field-row">
-                <label>Bay X <em>mm</em><input name="spacing_x_mm" type="number" value="3600"></label>
-                <label>Bay Y <em>mm</em><input name="spacing_y_mm" type="number" value="3900"></label>
+                <label>Bay X <em>mm</em><input name="spacing_x_mm" type="number" value="2400"></label>
+                <label>Bay Y <em>mm</em><input name="spacing_y_mm" type="number" value="3000"></label>
               </div>
               <label>Bottom of footing <span class="unit-field"><input name="footing_bottom_m" type="number" step="0.05" value="-1.8"><em>m</em></span></label>
               <label>Column embedment <span class="unit-field"><input name="column_embedment_m" type="number" step="0.05" value="0.6"><em>m</em></span></label>
@@ -65,11 +66,12 @@
             <div class="section-fields probability-fields">
               <label>Column load variation <output data-for="column_load_variation">20%</output><input name="column_load_variation" type="range" min="0" max="0.8" step="0.01" value="0.2"></label>
               <label>Footing size variation <output data-for="footing_size_variation">15%</output><input name="footing_size_variation" type="range" min="0" max="0.8" step="0.01" value="0.15"></label>
-              <label>Column rotation <output data-for="rotation_probability">38%</output><input name="rotation_probability" type="range" min="0" max="1" step="0.01" value="0.38"></label>
+              <label>Column rotation <output data-for="rotation_probability">0%</output><input name="rotation_probability" type="range" min="0" max="1" step="0.01" value="0"></label>
               <label>Diagonal tie layout <output data-for="diagonal_beam_probability">24%</output><input name="diagonal_beam_probability" type="range" min="0" max="1" step="0.01" value="0.24"></label>
-              <label>Occupied grid points <output data-for="occupancy_probability">78%</output><input name="occupancy_probability" type="range" min="0.2" max="1" step="0.01" value="0.78"></label>
-              <label>Grid irregularity <output data-for="irregularity_ratio">12%</output><input name="irregularity_ratio" type="range" min="0" max="0.25" step="0.01" value="0.12"></label>
+              <label>Occupied grid points <output data-for="occupancy_probability">42%</output><input name="occupancy_probability" type="range" min="0.2" max="1" step="0.01" value="0.42"></label>
+              <label>Grid irregularity <output data-for="irregularity_ratio">10%</output><input name="irregularity_ratio" type="range" min="0" max="0.25" step="0.01" value="0.10"></label>
               <label>Soil bearing capacity <span class="unit-field"><input name="soil_bearing_capacity_kpa" type="number" value="200"><em>kPa</em></span></label>
+              <label>Random seed<input name="seed" type="number" value="24017"></label>
             </div>
           </details>
 
@@ -77,15 +79,15 @@
             <summary>Drafting and annotation</summary>
             <div class="section-fields probability-fields">
               <label>Drawing complexity <output data-for="drawing_complexity">78%</output><input name="drawing_complexity" type="range" min="0" max="1" step="0.01" value="0.78"></label>
-              <label>Hatching frequency <output data-for="hatch_probability">34%</output><input name="hatch_probability" type="range" min="0" max="1" step="0.01" value="0.34"></label>
+              <label>Hatching frequency <output data-for="hatch_probability">0%</output><input name="hatch_probability" type="range" min="0" max="1" step="0.01" value="0"></label>
               <label>Hatching density <output data-for="hatch_density">65%</output><input name="hatch_density" type="range" min="0" max="1" step="0.01" value="0.65"></label>
               <label>Lineweight variation <output data-for="lineweight_variation">35%</output><input name="lineweight_variation" type="range" min="0" max="1" step="0.01" value="0.35"></label>
-              <label>Footing overlap <output data-for="footing_overlap_probability">28%</output><input name="footing_overlap_probability" type="range" min="0" max="1" step="0.01" value="0.28"></label>
+              <label>Footing overlap <output data-for="footing_overlap_probability">18%</output><input name="footing_overlap_probability" type="range" min="0" max="1" step="0.01" value="0.18"></label>
               <label>Dimension jitter <span class="unit-field"><input name="dimension_jitter_mm" type="number" value="75"><em>mm</em></span></label>
               <label>Extra dimensions <output data-for="extra_dimension_probability">60%</output><input name="extra_dimension_probability" type="range" min="0" max="1" step="0.01" value="0.6"></label>
-              <label>Leader notes <output data-for="leader_note_probability">55%</output><input name="leader_note_probability" type="range" min="0" max="1" step="0.01" value="0.55"></label>
-              <label>Revision clouds <output data-for="revision_cloud_probability">18%</output><input name="revision_cloud_probability" type="range" min="0" max="1" step="0.01" value="0.18"></label>
-              <label>Section callouts <output data-for="section_callout_probability">35%</output><input name="section_callout_probability" type="range" min="0" max="1" step="0.01" value="0.35"></label>
+              <label>Leader notes <output data-for="leader_note_probability">0%</output><input name="leader_note_probability" type="range" min="0" max="1" step="0.01" value="0"></label>
+              <label>Revision clouds <output data-for="revision_cloud_probability">0%</output><input name="revision_cloud_probability" type="range" min="0" max="1" step="0.01" value="0"></label>
+              <label>Section callouts <output data-for="section_callout_probability">0%</output><input name="section_callout_probability" type="range" min="0" max="1" step="0.01" value="0"></label>
             </div>
           </details>
 
@@ -94,10 +96,6 @@
             <div class="section-fields">
               <label>Project<input name="project_name" value="struct2bim_reference"></label>
               <label>Output<input name="output_name" value="reference_dataset"></label>
-              <div class="field-row">
-                <label>Random seed<input name="seed" type="number" value="24017"></label>
-                <label>Scenes<input name="scene_count" type="number" min="3" max="500" value="12"></label>
-              </div>
               <label>First training seed<input name="scene_seed_start" type="number" value="1000"></label>
             </div>
           </details>
@@ -109,7 +107,7 @@
         </footer>
 
         <input name="canvas_width_px" type="hidden" value="2048">
-        <input name="canvas_height_px" type="hidden" value="2048">
+        <input name="canvas_height_px" type="hidden" value="3072">
         <input name="pixels_per_mm" type="hidden" value="0.075">
         <input name="storey_height_mm" type="hidden" value="3200">
       </form>
@@ -126,7 +124,7 @@
         </div>
         <div class="view-info"><span id="scene-label">Seed 24017</span><i></i><span id="entity-label">Preview not generated</span></div>
         <div class="view-controls">
-          <button id="zoom-out" type="button" title="Zoom out">−</button>
+          <button id="zoom-out" type="button" title="Zoom out">-</button>
           <output id="zoom-level">100%</output>
           <button id="zoom-in" type="button" title="Zoom in">+</button>
           <button id="fit-view" type="button">Fit</button>
@@ -135,15 +133,15 @@
 
       <section id="viewport" class="viewport">
         <div id="image-stage" class="image-stage">
-          <img id="drawing-image" src="/portfolio/workspace_drawing.png?v=7" alt="Generated structural CAD drawing">
-          <img id="annotation-image" src="/portfolio/dataset_alignment_preview.png" alt="Column ground-truth overlay" hidden>
+          <img id="drawing-image" src="/portfolio/foundation-drawing.png" alt="Generated structural CAD drawing">
+          <img id="annotation-image" src="/portfolio/foundation-annotations.png" alt="Column ground-truth overlay" hidden>
         </div>
         <canvas id="ifc-canvas" aria-label="Interactive 3D IFC model" hidden></canvas>
-        <div id="ifc-help" class="ifc-help" hidden>Drag to orbit · Scroll to zoom · Double-click to reset</div>
+        <div id="ifc-help" class="ifc-help" hidden>Drag to orbit | Scroll to zoom | Double-click to reset</div>
         <div id="message" class="operation-message" aria-live="polite">Quick Preview creates a new scene from the next seed.</div>
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=7"></script>
+  <script src="/static/app.js?v=8"></script>
 </body>
 </html>

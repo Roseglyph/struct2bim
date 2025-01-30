@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Literal
 
@@ -13,6 +14,8 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
+from starlette.requests import Request
+from starlette.responses import Response
 
 from struct2bim.application import DatasetBuildConfig, build_dataset
 from struct2bim.augmentation import AugmentationProfile
@@ -42,21 +45,21 @@ class GeneratorParameters(BaseModel):
         AugmentationProfile.PERSPECTIVE_PHOTO,
     )
     canvas_width_px: int = Field(default=2048, ge=512, le=8192)
-    canvas_height_px: int = Field(default=2048, ge=512, le=8192)
+    canvas_height_px: int = Field(default=3072, ge=512, le=8192)
     pixels_per_mm: float = Field(default=0.075, gt=0, le=2.0)
-    columns_x: int = Field(default=5, ge=2, le=12)
-    columns_y: int = Field(default=6, ge=2, le=12)
-    spacing_x_mm: float = Field(default=3600, ge=500, le=20000)
-    spacing_y_mm: float = Field(default=3900, ge=500, le=20000)
+    columns_x: int = Field(default=8, ge=2, le=12)
+    columns_y: int = Field(default=11, ge=2, le=12)
+    spacing_x_mm: float = Field(default=2400, ge=500, le=20000)
+    spacing_y_mm: float = Field(default=3000, ge=500, le=20000)
     storey_height_mm: float = Field(default=3200, ge=1000, le=10000)
-    irregularity_ratio: float = Field(default=0.12, ge=0, le=0.25)
+    irregularity_ratio: float = Field(default=0.10, ge=0, le=0.25)
     drawing_complexity: float = Field(default=0.78, ge=0, le=1)
-    rotation_probability: float = Field(default=0.38, ge=0, le=1)
-    hatch_probability: float = Field(default=0.34, ge=0, le=1)
-    footing_overlap_probability: float = Field(default=0.28, ge=0, le=1)
+    rotation_probability: float = Field(default=0.0, ge=0, le=1)
+    hatch_probability: float = Field(default=0.0, ge=0, le=1)
+    footing_overlap_probability: float = Field(default=0.18, ge=0, le=1)
     diagonal_beam_probability: float = Field(default=0.24, ge=0, le=1)
-    occupancy_probability: float = Field(default=0.78, gt=0, le=1)
-    building_outline: Literal["rectangular", "irregular_polygon"] = "irregular_polygon"
+    occupancy_probability: float = Field(default=0.42, gt=0, le=1)
+    building_outline: Literal["none", "rectangular", "irregular_polygon"] = "none"
     foundation_type: Literal["isolated_tie_beams"] = "isolated_tie_beams"
     footing_bottom_m: float = Field(default=-1.8, ge=-10, le=0)
     column_embedment_m: float = Field(default=0.6, ge=0.1, le=3)
@@ -72,9 +75,9 @@ class GeneratorParameters(BaseModel):
     lineweight_variation: float = Field(default=0.35, ge=0, le=1)
     dimension_jitter_mm: float = Field(default=75, ge=0, le=500)
     extra_dimension_probability: float = Field(default=0.6, ge=0, le=1)
-    leader_note_probability: float = Field(default=0.55, ge=0, le=1)
-    revision_cloud_probability: float = Field(default=0.18, ge=0, le=1)
-    section_callout_probability: float = Field(default=0.35, ge=0, le=1)
+    leader_note_probability: float = Field(default=0.0, ge=0, le=1)
+    revision_cloud_probability: float = Field(default=0.0, ge=0, le=1)
+    section_callout_probability: float = Field(default=0.0, ge=0, le=1)
 
     @field_validator("output_name")
     @classmethod
@@ -158,7 +161,10 @@ def _safe_output(root: Path, *parts: str) -> Path:
     return output
 
 
-def _interactive_model(scene: object) -> dict[str, object]:
+def _interactive_model(
+    scene: object,
+    drawing_metadata: dict[str, object] | None = None,
+) -> dict[str, object]:
     """Return the compact metric geometry used by the browser's 3D viewer."""
     data = scene.model_dump(mode="json")  # type: ignore[attr-defined]
     columns: list[dict[str, object]] = []
@@ -188,7 +194,14 @@ def _interactive_model(scene: object) -> dict[str, object]:
         }
         for axis in data["grids"]
     ]
-    return {"units": "mm", "columns": columns, "grids": grids}
+    metadata = drawing_metadata or {}
+    return {
+        "units": "mm",
+        "columns": columns,
+        "grids": grids,
+        "beams": metadata.get("beams", []),
+        "footings": metadata.get("footings", []),
+    }
 
 
 def _build_preview(root: Path, parameters: GeneratorParameters) -> dict[str, object]:
@@ -199,8 +212,14 @@ def _build_preview(root: Path, parameters: GeneratorParameters) -> dict[str, obj
     scene_path.write_text(scene.canonical_json(), encoding="utf-8", newline="\n")
     preview_scene = scene.model_dump()
     preview_scene["preview_options"] = parameters.preview_options()
-    drawing = render_geometry_preview(preview_scene, output / "drawing.png", size=(1400, 900))
+    grid_width = (parameters.columns_x - 1) * parameters.spacing_x_mm
+    grid_height = (parameters.columns_y - 1) * parameters.spacing_y_mm
+    preview_size = (1334, 1900) if grid_height > grid_width * 1.15 else (1400, 900)
+    drawing = render_geometry_preview(preview_scene, output / "drawing.png", size=preview_size)
     annotation = render_annotation_preview(scene.model_dump(), drawing, output / "annotations.png")
+    drawing_metadata = json.loads(
+        drawing.with_suffix(drawing.suffix + ".render.json").read_text(encoding="utf-8")
+    )
     return {
         "message": "Fast preview generated",
         "entities": len(scene.entities),
@@ -210,7 +229,7 @@ def _build_preview(root: Path, parameters: GeneratorParameters) -> dict[str, obj
         "ifc_render": "/portfolio/ifc_isometric.png",
         "exchange_status": "validated during full generation",
         "seed": parameters.seed,
-        "model": _interactive_model(scene),
+        "model": _interactive_model(scene, drawing_metadata),
     }
 
 
@@ -233,6 +252,16 @@ def create_app(project_root: Path | None = None) -> FastAPI:
     outputs = root / "outputs"
     outputs.mkdir(parents=True, exist_ok=True)
     app = FastAPI(title="Struct2BIM", version="0.1.0")
+
+    @app.middleware("http")
+    async def disable_local_cache(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
     app.mount("/static", StaticFiles(directory=static), name="static")
     app.mount("/outputs", StaticFiles(directory=outputs), name="outputs")
     app.mount("/portfolio", StaticFiles(directory=root / "docs" / "assets"), name="portfolio")

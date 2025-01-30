@@ -14,7 +14,7 @@ const zoomLevel = document.querySelector("#zoom-level");
 let currentView = "drawing";
 let imageZoom = 1;
 let imagePan = { x: 0, y: 0 };
-let currentModel = { columns: [], grids: [], units: "mm" };
+let currentModel = { columns: [], grids: [], beams: [], footings: [], units: "mm" };
 let orbit = { azimuth: -0.72, elevation: 0.68, zoom: 1, panX: 0, panY: 0 };
 
 function number(name) {
@@ -126,6 +126,8 @@ function modelBounds() {
   const points = [];
   currentModel.grids.forEach((grid) => points.push(grid.start, grid.end));
   currentModel.columns.forEach((column) => points.push([column.x, column.y]));
+  currentModel.beams.forEach((beam) => points.push(beam.start, beam.end));
+  currentModel.footings.forEach((footing) => points.push(...footing.polygon));
   if (!points.length) return { minX: -5000, maxX: 5000, minY: -5000, maxY: 5000 };
   const xs = points.map((point) => point[0]);
   const ys = points.map((point) => point[1]);
@@ -201,6 +203,36 @@ function drawCuboid(context, vertices, project, palette) {
   drawFace(context, [points[4], points[5], points[6], points[7]], palette.top, palette.edge);
 }
 
+function drawPrism(context, polygon, bottom, top, project, palette) {
+  const lower = polygon.map((point) => project([point[0], point[1], bottom]));
+  const upper = polygon.map((point) => project([point[0], point[1], top]));
+  drawFace(context, lower, palette.bottom, palette.edge);
+  for (let index = 0; index < polygon.length; index += 1) {
+    const next = (index + 1) % polygon.length;
+    drawFace(
+      context,
+      [lower[index], lower[next], upper[next], upper[index]],
+      index % 2 ? palette.sideA : palette.sideB,
+      palette.edge,
+    );
+  }
+  drawFace(context, upper, palette.top, palette.edge);
+}
+
+function beamPolygon(beam) {
+  const dx = beam.end[0] - beam.start[0];
+  const dy = beam.end[1] - beam.start[1];
+  const length = Math.max(Math.hypot(dx, dy), 1);
+  const offsetX = -dy / length * beam.width / 2;
+  const offsetY = dx / length * beam.width / 2;
+  return [
+    [beam.start[0] + offsetX, beam.start[1] + offsetY],
+    [beam.end[0] + offsetX, beam.end[1] + offsetY],
+    [beam.end[0] - offsetX, beam.end[1] - offsetY],
+    [beam.start[0] - offsetX, beam.start[1] - offsetY],
+  ];
+}
+
 function drawCylinder(context, column, project, palette) {
   const segments = 14;
   const radius = column.width / 2;
@@ -250,11 +282,26 @@ function drawIfc() {
   });
   context.setLineDash([]);
 
+  const footingPalette = {
+    bottom: "#bdc9d2", sideA: "#cdd7de", sideB: "#aebdc8", top: "#e5ebef", edge: "#7e909c",
+  };
+  const beamPalette = {
+    bottom: "#80aebf", sideA: "#78a8b8", sideB: "#6599aa", top: "#a6cad5", edge: "#507f90",
+  };
+  const footings = [...currentModel.footings].sort((first, second) => {
+    const firstY = first.polygon.reduce((sum, point) => sum + point[1], 0) / first.polygon.length;
+    const secondY = second.polygon.reduce((sum, point) => sum + point[1], 0) / second.polygon.length;
+    return depth([0, secondY]) - depth([0, firstY]);
+  });
+  footings.forEach((footing) => {
+    drawPrism(context, footing.polygon, footing.bottom, 0, project, footingPalette);
+  });
+  currentModel.beams.forEach((beam) => {
+    drawPrism(context, beamPolygon(beam), -beam.depth, 0, project, beamPalette);
+  });
+
   const ordered = [...currentModel.columns].sort((first, second) => depth(second) - depth(first));
   ordered.forEach((column) => {
-    drawCuboid(context, cuboidVertices(column, true), project, {
-      bottom: "#cbd5dd", sideA: "#d5dee5", sideB: "#bcc8d1", top: "#e4ebf0", edge: "#82929e",
-    });
     const columnPalette = {
       bottom: "#5c91b8", sideA: "#397da9", sideB: "#2b678d", top: "#69a9d0", edge: "#1d5578",
     };
@@ -327,16 +374,30 @@ ifcCanvas.addEventListener("dblclick", () => {
   drawIfc();
 });
 
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const action = event.submitter.dataset.action;
-  if (action === "preview") {
-    form.elements.seed.value = number("seed") + 1;
-  }
+function applyPreviewResult(result, elapsed, initial = false) {
+  const stamp = Date.now();
+  drawingImage.src = `${result.drawing}?t=${stamp}`;
+  annotationImage.src = `${result.labels}?t=${stamp}`;
+  currentModel = result.model;
+  document.querySelector("#scene-label").textContent = `Seed ${result.seed}`;
+  document.querySelector("#entity-label").textContent = `${result.entities} columns | synchronized views`;
+  message.textContent = initial
+    ? "Drawing, annotations, and IFC loaded from the same scene."
+    : `New drawing generated in ${elapsed}s`;
+  resetImageTransform();
+  if (currentView === "ifc") drawIfc();
+}
+
+async function runAction(action, { advanceSeed = false, initial = false } = {}) {
+  if (advanceSeed) form.elements.seed.value = number("seed") + 1;
   const request = payload();
   message.hidden = false;
   message.classList.remove("error");
-  message.textContent = action === "preview" ? `Generating a new scene from seed ${request.seed}…` : "Running the full Blender dataset build…";
+  message.textContent = initial
+    ? "Loading synchronized scene..."
+    : action === "preview"
+      ? `Generating a new scene from seed ${request.seed}...`
+      : "Running the full Blender dataset build...";
   setBusy(true, action);
   const started = performance.now();
   try {
@@ -351,15 +412,7 @@ form.addEventListener("submit", async (event) => {
     if (!response.ok) throw new Error(result.detail || "The operation failed");
     const elapsed = ((performance.now() - started) / 1000).toFixed(2);
     if (action === "preview") {
-      const stamp = Date.now();
-      drawingImage.src = `${result.drawing}?t=${stamp}`;
-      annotationImage.src = `${result.labels}?t=${stamp}`;
-      currentModel = result.model;
-      document.querySelector("#scene-label").textContent = `Seed ${result.seed}`;
-      document.querySelector("#entity-label").textContent = `${result.entities} columns · automatic irregular layout`;
-      message.textContent = `New drawing generated in ${elapsed}s`;
-      resetImageTransform();
-      if (currentView === "ifc") drawIfc();
+      applyPreviewResult(result, elapsed, initial);
     } else {
       message.textContent = `Dataset generated and validated in ${elapsed}s`;
     }
@@ -369,6 +422,12 @@ form.addEventListener("submit", async (event) => {
   } finally {
     setBusy(false, action);
   }
+}
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const action = event.submitter.dataset.action;
+  await runAction(action, { advanceSeed: action === "preview" });
 });
 
 const splitter = document.querySelector("#inspector-splitter");
@@ -406,3 +465,4 @@ document.querySelector("#expand-inspector").addEventListener("click", () => {
 new ResizeObserver(() => currentView === "ifc" && drawIfc()).observe(viewport);
 updateEnvelopeReadout();
 selectView("drawing");
+runAction("preview", { initial: true });
