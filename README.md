@@ -154,3 +154,13 @@ uv run python scripts/release_audit.py
 ```
 
 The committed IFC is reopened with IfcOpenShell, and the DXF is reopened with ezdxf. Dataset validation checks coordinates, expected artifacts, hashes, masks, annotations, and split grouping. More detail is available in [verification](docs/verification.md), [architecture](docs/architecture.md), and the [data contract](docs/data-contract.md).
+
+## License and attribution
+
+Copyright 2026 Mohamed Hussein. Licensed under the [Apache License 2.0](LICENSE).
+Redistributions and derivative works must preserve the applicable attribution
+notice in [NOTICE](NOTICE), as required by Section 4(d) of the license. The
+original source is maintained by [Roseglyph](https://github.com/Roseglyph) at
+[Roseglyph/struct2bim](https://github.com/Roseglyph/struct2bim).
+
+License updated July 20, 2026.
